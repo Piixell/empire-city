@@ -28,24 +28,67 @@ export function databaseUrl(): string {
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
 }
 
+export interface DbConnectionParams {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  database: string;
+  ssl: "require" | false;
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s; // not percent-encoded (e.g. a raw "%" in the password)
+  }
+}
+
 /**
- * Keeps only parameters postgres.js understands: integration URLs carry extra
- * query params (e.g. `supa=base-pooler.x`) that would be sent to the server as
- * unknown startup parameters.
+ * Parses a Postgres connection string without `new URL()`, so passwords with
+ * unescaped special characters (`?`, `#`, `@`, `/`…) still work: the password
+ * ends at the LAST "@" before the host. Integration-only query parameters
+ * (e.g. `supa=base-pooler.x`) are dropped; only `sslmode` is honoured.
+ * Errors never include the connection string (it contains the password).
  */
-export function normalizeDatabaseUrl(raw: string): { url: string; ssl: "require" | false } {
-  const u = new URL(raw);
-  const sslmode = u.searchParams.get("sslmode");
-  u.search = "";
-  const isLocal = ["localhost", "127.0.0.1", "::1"].includes(u.hostname);
-  return { url: u.toString(), ssl: sslmode === "disable" || (isLocal && !sslmode) ? false : "require" };
+export function parseDatabaseUrl(raw: string): DbConnectionParams {
+  const m = /^postgres(?:ql)?:\/\/(.*)$/i.exec(raw.trim());
+  if (!m) throw new Error("DATABASE_URL non valida: deve iniziare con postgresql://");
+  const rest = m[1];
+  const at = rest.lastIndexOf("@");
+  if (at < 0) throw new Error("DATABASE_URL non valida: manca utente@host.");
+  const credentials = rest.slice(0, at);
+  const location = rest.slice(at + 1);
+  const colon = credentials.indexOf(":");
+  const user = safeDecode(colon < 0 ? credentials : credentials.slice(0, colon));
+  const password = colon < 0 ? "" : safeDecode(credentials.slice(colon + 1));
+  const hm = /^([^:/?#]+)(?::(\d+))?(?:\/([^?#]*))?(?:\?([^#]*))?/.exec(location);
+  if (!hm || !user) throw new Error("DATABASE_URL non valida: host o utente mancanti.");
+  const host = hm[1];
+  const params = new URLSearchParams(hm[4] ?? "");
+  const sslmode = params.get("sslmode");
+  const isLocal = ["localhost", "127.0.0.1", "::1"].includes(host);
+  return {
+    host,
+    port: hm[2] ? Number(hm[2]) : 5432,
+    user,
+    password,
+    database: safeDecode(hm[3] || "postgres"),
+    ssl: sslmode === "disable" || (isLocal && !sslmode) ? false : "require",
+  };
 }
 
 export async function createPostgresDatabase(rawUrl: string): Promise<Database> {
   const { default: postgres } = await import("postgres");
-  const { url, ssl } = normalizeDatabaseUrl(rawUrl);
-  const sql = postgres(url, {
-    ssl,
+  const conn = parseDatabaseUrl(rawUrl);
+  const sql = postgres({
+    host: conn.host,
+    port: conn.port,
+    user: conn.user,
+    password: conn.password,
+    database: conn.database,
+    ssl: conn.ssl,
     prepare: false, // required by Supabase's transaction pooler (pgbouncer)
     max: 5,
     idle_timeout: 20,

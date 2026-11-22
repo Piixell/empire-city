@@ -39,8 +39,17 @@ export function errorResponse(e: unknown) {
     const msg = e.issues[0]?.message || "Dati non validi.";
     return NextResponse.json({ error: { code: "VALIDATION", message: msg } }, { status: 400 });
   }
-  console.error("[api] unexpected error", e);
+  console.error("[api] unexpected error", redact(e));
   return NextResponse.json({ error: { code: "INTERNAL", message: "Errore interno del server. Riprova." } }, { status: 500 });
+}
+
+/** Logs only name/code/message/stack, with any connection-string credentials masked. */
+function redact(e: unknown): string {
+  const err = e as { name?: string; code?: string; message?: string; stack?: string };
+  const text = [err?.name, err?.code, err?.message, err?.stack?.split("\n").slice(1, 6).join("\n")]
+    .filter(Boolean)
+    .join(" | ");
+  return (text || String(e)).replace(/(postgres(?:ql)?:\/\/[^:\s/]*:)[^\s'"]*@/gi, "$1***@");
 }
 
 export async function readBody<T>(req: Request, schema: ZodType<T>): Promise<T> {
