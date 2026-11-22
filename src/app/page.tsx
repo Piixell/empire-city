@@ -77,8 +77,8 @@ export default function HomePage() {
             </p>
             <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { icon: Users, t: "6 giocatori", d: "in tempo reale" },
-                { icon: Building2, t: "48 caselle", d: "8 regioni" },
+                { icon: Users, t: "Fino a 8", d: "giocatori in tempo reale" },
+                { icon: Building2, t: "3 plance", d: "40 · 48 · 64 caselle" },
                 { icon: Coins, t: "Aste live", d: "con timer" },
                 { icon: Handshake, t: "Scambi", d: "e controfferte" },
               ].map(({ icon: Icon, t, d }) => (
@@ -116,8 +116,8 @@ export default function HomePage() {
                 </div>
                 <div className="mt-3">
                   <Label>Giocatori massimi</Label>
-                  <div className="mt-2 grid grid-cols-5 gap-2">
-                    {[2, 3, 4, 5, 6].map((n) => (
+                  <div className="mt-2 grid grid-cols-7 gap-1.5">
+                    {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                       <button
                         key={n}
                         type="button"
@@ -131,6 +131,11 @@ export default function HomePage() {
                       </button>
                     ))}
                   </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {maxPlayers > 6
+                      ? "Con 7–8 giocatori si usa la plancia Maxi da 64 caselle."
+                      : "Plancia Standard da 48 caselle: puoi cambiarla nella lobby (Classica 40, Standard 48, Maxi 64)."}
+                  </p>
                 </div>
                 <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">
                   <input type="checkbox" checked={usePassword} onChange={(e) => setUsePassword(e.target.checked)} className="size-4 accent-[#f5b83d]" />

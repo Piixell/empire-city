@@ -1,7 +1,7 @@
 "use client";
 
 import { Lock } from "lucide-react";
-import { DISTRICTS, TRANSPORT_RENT, UTILITY_MULTIPLIERS, tileAt, unmortgageCost } from "@/lib/game/board";
+import { DISTRICTS, tileAt, unmortgageCost } from "@/lib/game/board";
 import { computeRent } from "@/lib/game/rules";
 import { PLAYER_COLORS, cr } from "@/lib/client/ui-constants";
 import type { PublicGameState } from "@/lib/game/types";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 /** Detailed "title deed" card for any tile. */
 export function PropertyCard({ index, game, compact }: { index: number; game: PublicGameState; compact?: boolean }) {
-  const t = tileAt(index);
+  const t = tileAt(game, index);
   const own = game.ownership[index];
   const owner = own?.ownerId ? game.players.find((p) => p.id === own.ownerId) : undefined;
   const district = t.district ? DISTRICTS[t.district] : null;
@@ -85,7 +85,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
             <span className="text-[#2b2417]/70">Valore ipoteca</span>
             <span className="text-right font-semibold">{cr(t.mortgage!)} cr</span>
             <span className="text-[#2b2417]/70">Riscatto (+10%)</span>
-            <span className="text-right font-semibold">{cr(unmortgageCost(index))} cr</span>
+            <span className="text-right font-semibold">{cr(unmortgageCost(game, index))} cr</span>
           </div>
         )}
       </>
@@ -94,7 +94,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
     body = (
       <table className="w-full text-xs">
         <tbody>
-          {TRANSPORT_RENT.map((v, i) => (
+          {(t.rent ?? []).map((v, i) => (
             <tr key={i}>
               <td className="py-0.5 text-[#2b2417]/80">{i + 1} trasport{i ? "i" : "o"} posseduti (pedaggio)</td>
               <td className="py-0.5 text-right font-semibold">{cr(v)} cr</td>
@@ -106,7 +106,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
   } else if (t.kind === "utility") {
     body = (
       <div className="space-y-1 text-xs text-[#2b2417]/85">
-        {UTILITY_MULTIPLIERS.map((m, i) => (
+        {(t.multipliers ?? []).map((m, i) => (
           <div key={i} className="flex justify-between">
             <span>
               {i + 1} font{i ? "i" : "e"} arcan{i ? "e" : "a"} possedut{i ? "e" : "a"}

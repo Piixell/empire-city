@@ -1,4 +1,4 @@
-import { BOARD, DISTRICTS, OWNABLE_TILES, TRANSPORT_RENT, UTILITY_MULTIPLIERS, districtTiles, tileAt } from "./board";
+import { DISTRICTS, boardOf, districtTiles, tileAt } from "./board";
 import type { DistrictKey, GameState, OwnershipState, PlayerState } from "./types";
 
 export const AUCTION_START_MS = 20_000;
@@ -27,31 +27,31 @@ export function findPlayer(s: Pick<GameState, "players">, id: string | null | un
   return s.players.find((p) => p.id === id);
 }
 
-export function ownedTiles(s: Pick<GameState, "ownership">, playerId: string): OwnershipState[] {
+export function ownedTiles(s: Pick<GameState, "ownership" | "settings">, playerId: string): OwnershipState[] {
   return Object.values(s.ownership).filter((o) => o.ownerId === playerId);
 }
 
-export function ownsDistrict(s: Pick<GameState, "ownership">, playerId: string, d: DistrictKey): boolean {
-  return districtTiles(d).every((i) => s.ownership[i]?.ownerId === playerId);
+export function ownsDistrict(s: Pick<GameState, "ownership" | "settings">, playerId: string, d: DistrictKey): boolean {
+  return districtTiles(s, d).every((i) => s.ownership[i]?.ownerId === playerId);
 }
 
-export function districtHasBuildings(s: Pick<GameState, "ownership">, d: DistrictKey): boolean {
-  return districtTiles(d).some((i) => (s.ownership[i]?.houses ?? 0) > 0);
+export function districtHasBuildings(s: Pick<GameState, "ownership" | "settings">, d: DistrictKey): boolean {
+  return districtTiles(s, d).some((i) => (s.ownership[i]?.houses ?? 0) > 0);
 }
 
-export function districtHasMortgage(s: Pick<GameState, "ownership">, d: DistrictKey): boolean {
-  return districtTiles(d).some((i) => s.ownership[i]?.mortgaged);
+export function districtHasMortgage(s: Pick<GameState, "ownership" | "settings">, d: DistrictKey): boolean {
+  return districtTiles(s, d).some((i) => s.ownership[i]?.mortgaged);
 }
 
 /** A tile can change hands (trade) / be mortgaged only if its district has no buildings. */
-export function tileIsFreeOfBuildings(s: Pick<GameState, "ownership">, tile: number): boolean {
-  const t = tileAt(tile);
+export function tileIsFreeOfBuildings(s: Pick<GameState, "ownership" | "settings">, tile: number): boolean {
+  const t = tileAt(s, tile);
   if (t.kind !== "property" || !t.district) return true;
   return !districtHasBuildings(s, t.district);
 }
 
-export function countOwnedOfKind(s: Pick<GameState, "ownership">, playerId: string, kind: "transport" | "utility"): number {
-  return BOARD.filter((t) => t.kind === kind && s.ownership[t.index]?.ownerId === playerId).length;
+export function countOwnedOfKind(s: Pick<GameState, "ownership" | "settings">, playerId: string, kind: "transport" | "utility"): number {
+  return boardOf(s).tiles.filter((t) => t.kind === kind && s.ownership[t.index]?.ownerId === playerId).length;
 }
 
 export interface RentOptions {
@@ -60,8 +60,8 @@ export interface RentOptions {
   utilityFixedMultiplier?: number;
 }
 
-export function computeRent(s: Pick<GameState, "ownership">, tile: number, opts: RentOptions): number {
-  const t = tileAt(tile);
+export function computeRent(s: Pick<GameState, "ownership" | "settings">, tile: number, opts: RentOptions): number {
+  const t = tileAt(s, tile);
   const o = s.ownership[tile];
   if (!o || !o.ownerId || o.mortgaged) return 0;
   if (t.kind === "property") {
@@ -71,51 +71,51 @@ export function computeRent(s: Pick<GameState, "ownership">, tile: number, opts:
   }
   if (t.kind === "transport") {
     const n = countOwnedOfKind(s, o.ownerId, "transport");
-    return TRANSPORT_RENT[Math.max(0, n - 1)] * (opts.transportMultiplier ?? 1);
+    return (t.rent ?? [])[Math.max(0, n - 1)] * (opts.transportMultiplier ?? 1);
   }
   if (t.kind === "utility") {
     if (opts.utilityFixedMultiplier) return opts.diceTotal * opts.utilityFixedMultiplier;
     const n = countOwnedOfKind(s, o.ownerId, "utility");
-    return opts.diceTotal * UTILITY_MULTIPLIERS[Math.max(0, n - 1)];
+    return opts.diceTotal * (t.multipliers ?? [])[Math.max(0, n - 1)];
   }
   return 0;
 }
 
-export function buildingValue(tile: number, houses: number): number {
-  const t = tileAt(tile);
+export function buildingValue(s: Pick<GameState, "settings">, tile: number, houses: number): number {
+  const t = tileAt(s, tile);
   return houses * (t.houseCost ?? 0);
 }
 
-export function propertyValue(s: Pick<GameState, "ownership">, playerId: string): number {
+export function propertyValue(s: Pick<GameState, "ownership" | "settings">, playerId: string): number {
   let v = 0;
   for (const o of ownedTiles(s, playerId)) {
-    const t = tileAt(o.tile);
+    const t = tileAt(s, o.tile);
     v += o.mortgaged ? (t.price ?? 0) - (t.mortgage ?? 0) : t.price ?? 0;
-    v += buildingValue(o.tile, o.houses);
+    v += buildingValue(s, o.tile, o.houses);
   }
   return v;
 }
 
-export function netWorth(s: Pick<GameState, "ownership" | "players">, playerId: string): number {
+export function netWorth(s: Pick<GameState, "ownership" | "players" | "settings">, playerId: string): number {
   const p = findPlayer(s, playerId);
   if (!p || p.status !== "active") return 0;
   return p.balance + propertyValue(s, playerId);
 }
 
 /** Cash a player could raise by selling all buildings and mortgaging everything. */
-export function liquidationValue(s: Pick<GameState, "ownership" | "players">, playerId: string): number {
+export function liquidationValue(s: Pick<GameState, "ownership" | "players" | "settings">, playerId: string): number {
   const p = findPlayer(s, playerId);
   if (!p) return 0;
   let v = p.balance;
   for (const o of ownedTiles(s, playerId)) {
-    const t = tileAt(o.tile);
+    const t = tileAt(s, o.tile);
     v += o.houses * Math.floor((t.houseCost ?? 0) / 2);
     if (!o.mortgaged) v += t.mortgage ?? 0;
   }
   return v;
 }
 
-export function buildingsCount(s: Pick<GameState, "ownership">, playerId: string): { houses: number; towers: number } {
+export function buildingsCount(s: Pick<GameState, "ownership" | "settings">, playerId: string): { houses: number; towers: number } {
   let houses = 0;
   let towers = 0;
   for (const o of ownedTiles(s, playerId)) {
@@ -136,7 +136,7 @@ export interface Standing {
   status: PlayerState["status"];
 }
 
-export function computeStandings(s: Pick<GameState, "ownership" | "players" | "winnerId">): Standing[] {
+export function computeStandings(s: Pick<GameState, "ownership" | "players" | "winnerId" | "settings">): Standing[] {
   const active = activePlayers(s)
     .map((p) => ({ p, nw: netWorth(s, p.id) }))
     .sort((a, b) => {
@@ -178,10 +178,11 @@ export function computeStandings(s: Pick<GameState, "ownership" | "players" | "w
 }
 
 /** Next tile index of a kind strictly after `from`, moving forward. */
-export function nearestForward(from: number, kind: "transport" | "utility"): number {
-  for (let step = 1; step <= BOARD.length; step++) {
-    const idx = (from + step) % BOARD.length;
-    if (BOARD[idx].kind === kind) return idx;
+export function nearestForward(s: Pick<GameState, "settings">, from: number, kind: "transport" | "utility"): number {
+  const tiles = boardOf(s).tiles;
+  for (let step = 1; step <= tiles.length; step++) {
+    const idx = (from + step) % tiles.length;
+    if (tiles[idx].kind === kind) return idx;
   }
   return from;
 }
@@ -190,6 +191,3 @@ export function districtName(d: DistrictKey): string {
   return DISTRICTS[d].name;
 }
 
-export function allOwnableTiles(): number[] {
-  return OWNABLE_TILES;
-}

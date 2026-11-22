@@ -141,11 +141,18 @@ npm run typecheck # TypeScript strict
 - `tests/integration.test.ts` — 18 test che eseguono **le vere migrazioni SQL e i servizi del server** su Postgres (PGlite), coprendo gli scenari richiesti: 6 giocatori che entrano insieme, colori unici, avvio solo da host con tutti pronti, capitale iniziale, lancio e movimento (stato e versione aggiornati), acquisto, affitto, scambio, asta, riconnessione con la stessa sessione, **richieste duplicate e simultanee senza duplicazione di denaro**, timeout validati dal server, bancarotte e fine partita con vincitore, rivincita e passaggio dell'host, RLS (non membri non vedono la stanza, segreti illeggibili), rate limit della chat.
 - `tests/seed.test.ts` — verifica che il seed SQL sia allineato a `board.ts`/`cards.ts`.
 
+## Plance
+
+Le tre plance sono definite in `src/lib/game/board.ts` (sorgente unica) e salvate in `board_tiles` con chiave `(board, idx)`. Ogni partita registra la propria plancia in `game_sessions.board` e in `settings.board`; `property_ownership` e `game_auctions` hanno la colonna `board` con chiave esterna `(board, tile_idx) → board_tiles(board, idx)`, così il database rifiuta caselle che non esistono sulla plancia della partita. Le carte che spostano su una casella usano "ancore" (es. `palazzo-reale`) presenti su tutte le plance. Le partite create prima delle varianti valgono come `standard`.
+
+Aggiornamento di un database esistente: esegui in ordine `supabase/migrations/20261122000005_board_variants.sql` e `20261122000006_seed_boards.sql` (su un progetto nuovo basta l'intero `supabase/setup.sql`).
+
 ## Regole implementate
 
 | Elemento | Valore |
 |---|---|
-| Caselle | 48 (13 per lato): 26 proprietà in 8 quartieri (6×3, 2×4), 5 trasporti, 3 servizi, 4 Evento Urbano, 3 Fondo Cittadino, 3 tasse, 4 angoli |
+| Plance (menu nella lobby) | **Classica** 40 caselle: 22 proprietà in 8 regioni, 4 trasporti, 2 fonti arcane, 2–6 giocatori · **Standard** 48 (predefinita): 26 proprietà in 8 regioni, 5 trasporti, 3 fonti, 2–6 giocatori · **Maxi** 64: 36 proprietà in 10 regioni, 6 trasporti, 3 fonti, 2–8 giocatori |
+| Giocatori e colori | fino a 6 (Classica, Standard) o 8 (Maxi); 8 colori: rosso, blu, verde, giallo, viola, arancione, rosa, turchese |
 | Capitale iniziale | 2.000 cr (configurabile) |
 | Bonus Partenza | 250 cr (configurabile) |
 | Affitti | base; ×2 con quartiere completo senza edifici; 1–4 case; torre |

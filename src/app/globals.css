@@ -137,14 +137,14 @@ body {
 }
 
 .tile-name {
-  font-size: 1.02cqmin;
+  font-size: calc(1.02cqmin * var(--tf, 1));
   line-height: 1.1;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .tile-sub {
-  font-size: 0.95cqmin;
+  font-size: calc(0.95cqmin * var(--tf, 1));
   line-height: 1.1;
   font-weight: 600;
 }

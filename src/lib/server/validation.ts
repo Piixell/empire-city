@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { BOARD_SIZE } from "../game/types";
+import { BOARD_IDS, MAX_BOARD_SIZE } from "../game/board";
+import { MAX_PLAYERS } from "../game/types";
 
-export const COLORS = ["red", "blue", "green", "yellow", "purple", "orange"] as const;
+export const COLORS = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "teal"] as const;
+export const boardIdSchema = z.enum(BOARD_IDS as ["classic", "standard", "maxi"]);
 export const TOKENS = ["car", "ship", "plane", "rocket", "crown", "gem", "dog", "cat", "train", "bike"] as const;
 export const AVATARS = ["🙂", "😎", "🤠", "🧐", "🦊", "🐼", "🐯", "🦁", "🐸", "🐙", "👑", "🚀", "🎩", "💼", "🏙️", "🌆"] as const;
 
@@ -30,18 +32,20 @@ export const displayName = z
   .refine((s) => s.length >= 1, "Il nome non può essere vuoto (max 20 caratteri).");
 
 export const settingsSchema = z.object({
-  maxPlayers: z.number().int().min(2).max(6),
+  maxPlayers: z.number().int().min(2).max(MAX_PLAYERS),
   startingCash: z.number().int().min(500).max(20000),
   goBonus: z.number().int().min(0).max(2000),
   turnSeconds: z.number().int().min(30).max(600),
   auctionsEnabled: z.boolean(),
   chatEnabled: z.boolean(),
   maxDurationMinutes: z.number().int().min(0).max(600),
+  board: boardIdSchema,
 });
 
 export const createRoomSchema = z.object({
   name: displayName,
-  maxPlayers: z.number().int().min(2).max(6).default(6),
+  maxPlayers: z.number().int().min(2).max(MAX_PLAYERS).default(6),
+  board: boardIdSchema.optional(),
   password: z.string().max(64).optional().nullable(),
 });
 
@@ -70,7 +74,7 @@ export const chatSchema = z.object({
   body: z.string().transform((s) => sanitizeText(s, 300)).refine((s) => s.length > 0, "Messaggio vuoto."),
 });
 
-const tile = z.number().int().min(0).max(BOARD_SIZE - 1);
+const tile = z.number().int().min(0).max(MAX_BOARD_SIZE - 1);
 const money = z.number().int().min(0).max(1_000_000);
 const cardIds = z.array(z.string().max(8)).max(4);
 

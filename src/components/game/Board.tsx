@@ -9,33 +9,43 @@ import { Dice } from "@/components/game/Dice";
 import { Tile } from "@/components/game/Tile";
 import { useNow } from "@/hooks/useNow";
 import { useTokenPositions } from "@/hooks/useTokenPositions";
-import { BOARD, tileAt, tileGridPosition, tileSide } from "@/lib/game/board";
+import { boardOf, tileAt, tileGridPosition, tileSide, type BoardDef } from "@/lib/game/board";
 import { DECK_NAMES } from "@/lib/game/cards";
 import { activeDeadline, phaseLabel } from "@/lib/game/engine";
 import { PLAYER_COLORS, TOKEN_ICONS, cr } from "@/lib/client/ui-constants";
 import type { PlayerState } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 
-const UNITS = 14.1;
+/** Corner cells are CORNER units wide; edge cells 1 unit. Grid = (perSide+1)². */
 const CORNER = 1.55;
 
-function axisCenter(i: number): number {
-  const start = i === 1 ? 0 : i === 13 ? 1 * CORNER + 11 : CORNER + (i - 2);
-  const width = i === 1 || i === 13 ? CORNER : 1;
-  return ((start + width / 2) / UNITS) * 100;
+/** Board geometry derived from tiles per side (10 / 12 / 16). */
+export function boardGeometry(board: BoardDef) {
+  const perSide = board.perSide;
+  const cells = perSide + 1;
+  const units = CORNER * 2 + (perSide - 1);
+  // Scale relative to the original 13×13 board; text never shrinks below 86%.
+  const ratio = 13 / cells;
+  return { perSide, cells, units, scale: Math.max(0.86, ratio), tokenPct: 3.1 * ratio };
 }
 
-export function tileCenter(index: number): { x: number; y: number } {
-  const { row, col } = tileGridPosition(index);
-  return { x: axisCenter(col), y: axisCenter(row) };
+function axisCenter(i: number, cells: number, units: number): number {
+  const start = i === 1 ? 0 : i === cells ? CORNER + (cells - 2) : CORNER + (i - 2);
+  const width = i === 1 || i === cells ? CORNER : 1;
+  return ((start + width / 2) / units) * 100;
 }
 
-const TOKEN_PCT = 3.1;
+export function tileCenter(index: number, board: BoardDef): { x: number; y: number } {
+  const g = boardGeometry(board);
+  const { row, col } = tileGridPosition(index, g.perSide);
+  return { x: axisCenter(col, g.cells, g.units), y: axisCenter(row, g.cells, g.units) };
+}
 
-function formationOffset(index: number, k: number, n: number): { dx: number; dy: number } {
+function formationOffset(index: number, k: number, n: number, board: BoardDef): { dx: number; dy: number } {
   if (n <= 1) return { dx: 0, dy: 0 };
-  const side = tileSide(index);
-  const tall = (side === 0 || side === 2) && index % 12 !== 0;
+  const { perSide, tokenPct: TOKEN_PCT } = boardGeometry(board);
+  const side = tileSide(index, perSide);
+  const tall = (side === 0 || side === 2) && index % perSide !== 0;
   const cols = tall ? 2 : 3;
   const rows = Math.ceil(n / cols);
   const c = k % cols;
@@ -47,6 +57,8 @@ function formationOffset(index: number, k: number, n: number): { dx: number; dy:
 
 /** Responsive square board with zoom & pan (mostly for phones/tablets). */
 export function BoardViewport() {
+  const { game } = useGame();
+  const bigBoard = boardOf(game).perSide > 12;
   const outer = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(0);
   const [scale, setScale] = useState(1);
@@ -101,7 +113,7 @@ export function BoardViewport() {
           {size > 0 && <Board size={size} />}
         </div>
       </div>
-      <div className="absolute bottom-2 right-2 z-20 flex flex-col gap-1 xl:hidden">
+      <div className={cn("absolute bottom-2 right-2 z-20 flex flex-col gap-1", !bigBoard && "xl:hidden")}>
         <ZoomBtn onClick={() => setScale((s) => Math.min(2.5, s + 0.35))} label="Zoom avanti">
           <Plus className="size-4" />
         </ZoomBtn>
@@ -128,10 +140,16 @@ function Board({ size }: { size: number }) {
   const { game, selectedTile, setSelectedTile } = useGame();
   const colorOf = useMemo(() => Object.fromEntries(game.players.map((p) => [p.id, p.color])), [game.players]);
   const pending = game.turn.pendingTile ?? game.auction?.tile ?? null;
+  const board = boardOf(game);
+  const g = boardGeometry(board);
+  const track = `${CORNER}fr repeat(${g.perSide - 1}, 1fr) ${CORNER}fr`;
   return (
-    <div className="board-frame relative h-full w-full rounded-[1.2cqmin]" style={{ width: size, height: size }}>
-      <div className="board-grid overflow-hidden rounded-[1cqmin]">
-        {BOARD.map((t) => {
+    <div
+      className="board-frame relative h-full w-full rounded-[1.2cqmin]"
+      style={{ width: size, height: size, ["--tf" as string]: g.scale }}
+    >
+      <div className="board-grid overflow-hidden rounded-[1cqmin]" style={{ gridTemplateColumns: track, gridTemplateRows: track }}>
+        {board.tiles.map((t) => {
           const own = game.ownership[t.index];
           return (
             <Tile
@@ -142,11 +160,12 @@ function Board({ size }: { size: number }) {
               selected={selectedTile === t.index}
               highlight={pending === t.index}
               goBonus={game.settings.goBonus}
+              perSide={g.perSide}
               onSelect={setSelectedTile}
             />
           );
         })}
-        <div className="relative overflow-hidden" style={{ gridRow: "2 / 13", gridColumn: "2 / 13" }}>
+        <div className="relative overflow-hidden" style={{ gridRow: `2 / ${g.cells}`, gridColumn: `2 / ${g.cells}` }}>
           <BoardCenter size={size} />
         </div>
       </div>
@@ -158,6 +177,8 @@ function Board({ size }: { size: number }) {
 function TokensLayer() {
   const { game } = useGame();
   const display = useTokenPositions(game);
+  const board = boardOf(game);
+  const { tokenPct: TOKEN_PCT } = boardGeometry(board);
   const players = game.players.filter((p) => p.status === "active");
   const byTile = new Map<number, PlayerState[]>();
   for (const p of players) {
@@ -170,8 +191,8 @@ function TokensLayer() {
         const pos = display[p.id] ?? p.position;
         const group = byTile.get(pos)!;
         const k = group.findIndex((x) => x.id === p.id);
-        const c = tileCenter(pos);
-        const off = formationOffset(pos, k, group.length);
+        const c = tileCenter(pos, board);
+        const off = formationOffset(pos, k, group.length, board);
         const Icon = TOKEN_ICONS[p.token].icon;
         const active = game.turn.playerId === p.id && game.status === "active";
         return (
@@ -289,7 +310,7 @@ function BoardCenter({ size }: { size: number }) {
             className="relative flex items-center gap-[1cqmin] rounded-[1cqmin] bg-[#2b2417] px-[1.6cqmin] py-[0.8cqmin] font-bold text-[#ffe7a8]"
             style={{ fontSize: "1.6cqmin" }}
           >
-            <Gavel style={{ width: "2cqmin", height: "2cqmin" }} /> Asta: {tileAt(game.auction.tile).name} — {cr(game.auction.highBid)} cr
+            <Gavel style={{ width: "2cqmin", height: "2cqmin" }} /> Asta: {tileAt(game, game.auction.tile).name} — {cr(game.auction.highBid)} cr
           </motion.div>
         )}
       </AnimatePresence>

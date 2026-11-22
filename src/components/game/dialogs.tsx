@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input, Label } from "@/components/ui/input";
 import { Hint } from "@/components/ui/misc";
 import { useNow } from "@/hooks/useNow";
-import { DISTRICTS, JAIL_FINE, OWNABLE_TILES, tileAt, unmortgageCost } from "@/lib/game/board";
+import { DISTRICTS, JAIL_FINE, boardOf, tileAt, unmortgageCost } from "@/lib/game/board";
 import { getCard } from "@/lib/game/cards";
 import { canBuildReason, canMortgageReason, canSellBuildingReason, minNextBid, validateTrade } from "@/lib/game/engine";
 import { liquidationValue, ownedTiles, tileIsFreeOfBuildings } from "@/lib/game/rules";
@@ -36,7 +36,7 @@ export function BuyDialog() {
     return () => clearTimeout(id);
   }, [shouldOpen, pending]);
   if (!shouldOpen || pending == null || !me) return null;
-  const t = tileAt(pending);
+  const t = tileAt(game, pending);
   const price = t.price ?? 0;
   const canAfford = me.balance >= price;
   return (
@@ -82,7 +82,7 @@ export function AuctionDialog() {
     if (a) setOpen(true);
   }, [a?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!a) return null;
-  const tile = tileAt(a.tile);
+  const tile = tileAt(game, a.tile);
   const min = minNextBid(a.highBid);
   const high = game.players.find((p) => p.id === a.highBidderId);
   const remaining = Math.max(0, a.deadline - t);
@@ -309,12 +309,12 @@ export function ManageDialog() {
         ) : (
           <div className="divide-y divide-border/60">
             {mine.map((o) => {
-              const t = tileAt(o.tile);
+              const t = tileAt(game, o.tile);
               const color = t.district ? DISTRICTS[t.district].color : t.kind === "transport" ? "#475569" : "#0f766e";
               const build = buildPhaseReason ?? canBuildReason(s, me, o.tile);
               const sell = sellPhaseReason ?? canSellBuildingReason(s, me, o.tile);
               const mort = sellPhaseReason ?? canMortgageReason(s, me, o.tile);
-              const unm = buildPhaseReason ?? (!o.mortgaged ? "Non ipotecata." : me.balance < unmortgageCost(o.tile) ? "Fondi insufficienti." : null);
+              const unm = buildPhaseReason ?? (!o.mortgaged ? "Non ipotecata." : me.balance < unmortgageCost(game, o.tile) ? "Fondi insufficienti." : null);
               return (
                 <div key={o.tile} className="flex flex-wrap items-center gap-2 py-2">
                   <span className="h-8 w-1.5 rounded-full" style={{ background: color }} />
@@ -341,7 +341,7 @@ export function ManageDialog() {
                   {o.mortgaged ? (
                     <Hint label={unm ?? undefined}>
                       <Button size="sm" variant="accent" disabled={!!unm || !!busy} onClick={() => send({ type: "UNMORTGAGE", tile: o.tile })}>
-                        Riscatta −{unmortgageCost(o.tile)}
+                        Riscatta −{unmortgageCost(game, o.tile)}
                       </Button>
                     </Hint>
                   ) : (
@@ -504,7 +504,7 @@ function TradeSide({
   cards: string[];
   onCard: (c: string) => void;
 }) {
-  const owned = OWNABLE_TILES.filter((i) => game.ownership[i]?.ownerId === player.id);
+  const owned = boardOf(game).ownable.filter((i) => game.ownership[i]?.ownerId === player.id);
   return (
     <div className="rounded-xl border border-border bg-black/20 p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -516,7 +516,7 @@ function TradeSide({
       <div className="max-h-56 space-y-1 overflow-y-auto pr-1 scroll-thin">
         {owned.length === 0 && <div className="py-3 text-center text-xs text-muted-foreground">Nessuna proprietà</div>}
         {owned.map((i) => {
-          const t = tileAt(i);
+          const t = tileAt(game, i);
           const free = tileIsFreeOfBuildings(game, i);
           const color = t.district ? DISTRICTS[t.district].color : "#475569";
           return (
@@ -551,7 +551,7 @@ export function TradeSummary({ trade, game }: { trade: TradeOffer; game: PublicG
   const from = game.players.find((p) => p.id === trade.fromId);
   const to = game.players.find((p) => p.id === trade.toId);
   const items = (tiles: number[], cash: number, cards: string[]) => {
-    const parts = [...tiles.map((i) => tileAt(i).name), ...(cash ? [`${cr(cash)} cr`] : []), ...cards.map(() => "📜 pergamena d'evasione")];
+    const parts = [...tiles.map((i) => tileAt(game, i).name), ...(cash ? [`${cr(cash)} cr`] : []), ...cards.map(() => "📜 pergamena d'evasione")];
     return parts.length ? parts.join(", ") : "nulla";
   };
   return (
@@ -591,7 +591,7 @@ export function PortfolioDialog() {
               {ownedTiles(game, p.id)
                 .sort((a, b) => a.tile - b.tile)
                 .map((o) => {
-                  const t = tileAt(o.tile);
+                  const t = tileAt(game, o.tile);
                   const color = t.district ? DISTRICTS[t.district].color : "#475569";
                   return (
                     <button

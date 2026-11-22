@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BOARD_SIZE, type GameEvent, type PublicGameState } from "@/lib/game/types";
+import { boardOf } from "@/lib/game/board";
+import type { GameEvent, PublicGameState } from "@/lib/game/types";
 
 const STEP_MS = 105;
 const JUMP_MS = 320;
@@ -47,7 +48,7 @@ export function useTokenPositions(game: PublicGameState): Record<string, number>
         continue;
       }
       const evs = fresh.filter((e) => e.playerId === p.id && (e.type === "move" || e.type === "jail"));
-      const steps = buildPath(tail, evs);
+      const steps = buildPath(tail, evs, boardOf(game).size);
       const end = steps.length ? steps[steps.length - 1].pos : tail;
       if (end !== target) steps.push({ pos: target, ms: JUMP_MS });
       if (steps.length) queues.current[p.id] = [...q, ...steps];
@@ -89,7 +90,7 @@ export function useTokenPositions(game: PublicGameState): Record<string, number>
   return display;
 }
 
-function buildPath(start: number, events: GameEvent[]): Step[] {
+function buildPath(start: number, events: GameEvent[], size: number): Step[] {
   const out: Step[] = [];
   let cur = start;
   for (const e of events) {
@@ -108,7 +109,7 @@ function buildPath(start: number, events: GameEvent[]): Step[] {
     const steps = d.steps ?? 0;
     const dir = steps >= 0 ? 1 : -1;
     for (let i = 0; i < Math.abs(steps); i++) {
-      cur = (((cur + dir) % BOARD_SIZE) + BOARD_SIZE) % BOARD_SIZE;
+      cur = (((cur + dir) % size) + size) % size;
       out.push({ pos: cur, ms: STEP_MS });
     }
   }

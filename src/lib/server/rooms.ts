@@ -5,8 +5,9 @@
 // ---------------------------------------------------------------------------
 import { randomBytes, randomInt, randomUUID, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { boardOf } from "../game/board";
 import { createInitialState, type Rng } from "../game/engine";
-import { DEFAULT_SETTINGS, type GameSettings, type PlayerColor, type PublicGameState, type TokenModel } from "../game/types";
+import { DEFAULT_SETTINGS, type BoardId, type GameSettings, type PlayerColor, type PublicGameState, type TokenModel } from "../game/types";
 import type { Database, Queryer, Row } from "./db";
 import { ApiError, conflict, forbidden, notFound } from "./errors";
 import { applyGameCommand, cryptoRng, insertNewGame } from "./game-service";
@@ -252,18 +253,21 @@ export function chatView(m: Row): ChatMessageView {
 export async function createRoom(
   db: Database,
   userId: string,
-  input: { name: string; maxPlayers: number; password?: string | null },
+  input: { name: string; maxPlayers: number; password?: string | null; board?: BoardId },
 ): Promise<{ code: string; roomId: string }> {
   const passwordHash = input.password ? await hashPassword(input.password) : null;
   for (let attempt = 0; attempt < 8; attempt++) {
     const code = generateRoomCode();
     try {
       return await db.tx(async (q) => {
-        const settings: GameSettings = { ...DEFAULT_SETTINGS, maxPlayers: input.maxPlayers };
+        // More than 6 seats needs the maxi board; the limit always follows the board.
+        const board = boardOf(input.board ?? (input.maxPlayers > 6 ? "maxi" : DEFAULT_SETTINGS.board));
+        const maxPlayers = Math.min(input.maxPlayers, board.maxPlayers);
+        const settings: GameSettings = { ...DEFAULT_SETTINGS, board: board.id, maxPlayers };
         const rows = await q.query(
           `insert into public.game_rooms (code, host_user_id, max_players, has_password, settings)
            values ($1, $2::uuid, $3::int, $4::boolean, $5::jsonb) returning id`,
-          [code, userId, input.maxPlayers, !!passwordHash, JSON.stringify(settings)],
+          [code, userId, maxPlayers, !!passwordHash, JSON.stringify(settings)],
         );
         const roomId = rows[0].id as string;
         if (passwordHash) {
@@ -388,9 +392,19 @@ export async function updateSettings(
     if (r.host_user_id !== userId) throw forbidden("Solo l'host può modificare le impostazioni.");
     if (r.status !== "lobby") throw conflict("LOCKED", "Le impostazioni sono bloccate dopo l'avvio.");
     const merged = settingsSchema.parse({ ...DEFAULT_SETTINGS, ...jsonObject(r.settings), maxPlayers: r.max_players, ...(input.settings ?? {}) });
+    const board = boardOf(merged.board);
+    if (merged.maxPlayers > board.maxPlayers) {
+      // e.g. switching from maxi (8) back to standard (6): clamp the seat count
+      merged.maxPlayers = board.maxPlayers;
+    }
     const players = await activePlayers(q, roomId);
     if (merged.maxPlayers < players.length) {
-      throw conflict("TOO_MANY_PLAYERS", `Ci sono già ${players.length} giocatori nella stanza.`);
+      throw conflict(
+        "TOO_MANY_PLAYERS",
+        merged.maxPlayers === board.maxPlayers && players.length > board.maxPlayers
+          ? `Ci sono già ${players.length} giocatori: la plancia ${board.label} ne ammette al massimo ${board.maxPlayers}.`
+          : `Ci sono già ${players.length} giocatori nella stanza.`,
+      );
     }
     if (input.password !== undefined) {
       if (passwordHash) {

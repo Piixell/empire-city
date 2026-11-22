@@ -7,7 +7,7 @@
 // fully serialized. Clients only ever *display* its output.
 // ---------------------------------------------------------------------------
 
-import { JAIL_FINE, OWNABLE_TILES, districtTiles, isOwnable, tileAt, unmortgageCost } from "./board";
+import { JAIL_FINE, boardOf, districtTiles, isOwnable, tileAt, unmortgageCost } from "./board";
 import { getCard, cardsOfDeck, DECK_NAMES } from "./cards";
 import {
   AUCTION_EXTEND_MS,
@@ -32,8 +32,6 @@ import {
   type RentOptions,
 } from "./rules";
 import {
-  BOARD_SIZE,
-  JAIL_INDEX,
   MAX_BUILDINGS,
   type Command,
   type DeckKind,
@@ -107,6 +105,10 @@ export function createInitialState(input: {
 }): GameState {
   const { settings, now, rng } = input;
   if (input.players.length < 2) throw new GameError("NOT_ENOUGH_PLAYERS", "Servono almeno due giocatori.");
+  const board = boardOf(settings.board);
+  if (input.players.length > board.maxPlayers) {
+    throw new GameError("TOO_MANY_PLAYERS", `La plancia ${board.label} ammette al massimo ${board.maxPlayers} giocatori.`);
+  }
   const order = shuffle(input.players, rng);
   const players: PlayerState[] = order.map((p, seat) => ({
     ...p,
@@ -121,7 +123,7 @@ export function createInitialState(input: {
     stats: { propertiesBought: 0, buildingsBuilt: 0, rentPaid: 0, rentReceived: 0 },
   }));
   const ownership: GameState["ownership"] = {};
-  for (const i of OWNABLE_TILES) ownership[i] = { tile: i, ownerId: null, houses: 0, mortgaged: false };
+  for (const i of boardOf(settings.board).ownable) ownership[i] = { tile: i, ownerId: null, houses: 0, mortgaged: false };
   const deck = (kind: DeckKind) => ({ kind, order: shuffle(cardsOfDeck(kind).map((c) => c.id), rng), index: 0 });
   const state: GameState = {
     id: input.gameId,
@@ -497,30 +499,30 @@ function payFirstDebt(c: Ctx, p: PlayerState) {
 
 function moveSteps(c: Ctx, p: PlayerState, steps: number) {
   const from = p.position;
-  const to = (((from + steps) % BOARD_SIZE) + BOARD_SIZE) % BOARD_SIZE;
+  const to = (((from + steps) % boardOf(c.s).size) + boardOf(c.s).size) % boardOf(c.s).size;
   p.position = to;
-  c.emit("move", `${p.name} si sposta su ${tileAt(to).name}.`, p.id, { from, to, steps, mode: "walk" });
-  if (steps > 0 && from + steps >= BOARD_SIZE) {
+  c.emit("move", `${p.name} si sposta su ${tileAt(c.s, to).name}.`, p.id, { from, to, steps, mode: "walk" });
+  if (steps > 0 && from + steps >= boardOf(c.s).size) {
     credit(c, p, c.s.settings.goBonus, "passaggio dalla Fontana della Rinascita");
   }
 }
 
 function moveToTile(c: Ctx, p: PlayerState, target: number) {
-  const steps = (target - p.position + BOARD_SIZE) % BOARD_SIZE;
+  const steps = (target - p.position + boardOf(c.s).size) % boardOf(c.s).size;
   if (steps === 0) return;
   moveSteps(c, p, steps);
 }
 
 function sendToJail(c: Ctx, p: PlayerState, reason: string) {
   const from = p.position;
-  p.position = JAIL_INDEX;
+  p.position = boardOf(c.s).jailIndex;
   p.inJail = true;
   p.jailTurns = 0;
   if (c.s.turn.playerId === p.id) {
     c.s.turn.extraRoll = false;
     c.s.turn.doublesCount = 0;
   }
-  c.emit("jail", `${p.name} finisce nelle Segrete del Re: ${reason}.`, p.id, { from, to: JAIL_INDEX, mode: "jump" });
+  c.emit("jail", `${p.name} finisce nelle Segrete del Re: ${reason}.`, p.id, { from, to: boardOf(c.s).jailIndex, mode: "jump" });
 }
 
 function doRoll(c: Ctx, p: PlayerState) {
@@ -574,7 +576,7 @@ function doRoll(c: Ctx, p: PlayerState) {
 
 function resolveLanding(c: Ctx, p: PlayerState, opts: RentOptions, depth: number) {
   const s = c.s;
-  const t = tileAt(p.position);
+  const t = tileAt(s, p.position);
   switch (t.kind) {
     case "go":
     case "parking":
@@ -633,11 +635,11 @@ function drawCard(c: Ctx, p: PlayerState, kind: DeckKind, depth: number) {
       else charge(c, p, null, -e.amount, card.title);
       return;
     case "moveTo":
-      moveToTile(c, p, e.tile);
+      moveToTile(c, p, boardOf(s).anchors[e.to] ?? 0);
       resolveLanding(c, p, { diceTotal: diceTotal(s) }, depth + 1);
       return;
     case "moveToNearest": {
-      const target = nearestForward(p.position, e.kind);
+      const target = nearestForward(s, p.position, e.kind);
       moveToTile(c, p, target);
       resolveLanding(
         c,
@@ -696,7 +698,7 @@ function doBuy(c: Ctx, p: PlayerState) {
   const s = c.s;
   const idx = s.turn.pendingTile;
   if (idx == null) throw new GameError("NOTHING_TO_BUY", "Nessuna proprietà da acquistare.");
-  const t = tileAt(idx);
+  const t = tileAt(s, idx);
   const price = t.price ?? 0;
   if (p.balance < price) throw new GameError("INSUFFICIENT_FUNDS", `Fondi insufficienti: servono ${formatCr(price)}.`);
   p.balance -= price;
@@ -722,9 +724,9 @@ function doDecline(c: Ctx, p: PlayerState) {
       deadline: c.now + AUCTION_START_MS,
       startedAt: c.now,
     };
-    c.emit("auctionStart", `${p.name} rinuncia: ${tileAt(idx).name} va all'asta!`, p.id, { tile: idx, auctionId: s.auction.id });
+    c.emit("auctionStart", `${p.name} rinuncia: ${tileAt(s, idx).name} va all'asta!`, p.id, { tile: idx, auctionId: s.auction.id });
   } else {
-    c.emit("declined", `${p.name} rinuncia all'acquisto di ${tileAt(idx).name}.`, p.id, { tile: idx });
+    c.emit("declined", `${p.name} rinuncia all'acquisto di ${tileAt(s, idx).name}.`, p.id, { tile: idx });
   }
 }
 
@@ -744,7 +746,7 @@ function doBid(c: Ctx, p: PlayerState, amount: number) {
   a.highBidderId = p.id;
   a.bids.push({ playerId: p.id, amount, at: c.now });
   a.deadline = Math.max(a.deadline, c.now + AUCTION_EXTEND_MS);
-  c.emit("bid", `${p.name} offre ${formatCr(amount)} per ${tileAt(a.tile).name}.`, p.id, { amount, auctionId: a.id });
+  c.emit("bid", `${p.name} offre ${formatCr(amount)} per ${tileAt(c.s, a.tile).name}.`, p.id, { amount, auctionId: a.id });
   maybeCloseAuction(c);
 }
 
@@ -772,7 +774,7 @@ function closeAuction(c: Ctx) {
   const a = s.auction;
   if (!a) return;
   s.auction = null;
-  const t = tileAt(a.tile);
+  const t = tileAt(s, a.tile);
   const winner = findPlayer(s, a.highBidderId);
   if (winner && winner.status === "active" && winner.balance >= a.highBid && !s.ownership[a.tile].ownerId) {
     winner.balance -= a.highBid;
@@ -793,40 +795,40 @@ function closeAuction(c: Ctx) {
 // ---------------------------------------------------------------------------
 
 function requireOwnedProperty(s: GameState, p: PlayerState, tile: number) {
-  if (!Number.isInteger(tile) || !isOwnable(tile)) throw new GameError("BAD_TILE", "Casella non valida.");
+  if (!Number.isInteger(tile) || !isOwnable(s, tile)) throw new GameError("BAD_TILE", "Casella non valida.");
   const o = s.ownership[tile];
   if (o.ownerId !== p.id) throw new GameError("NOT_OWNER", "Non possiedi questa proprietà.", 403);
-  return { o, t: tileAt(tile) };
+  return { o, t: tileAt(s, tile) };
 }
 
 export function canBuildReason(s: GameState, p: PlayerState, tile: number): string | null {
-  if (!isOwnable(tile)) return "Casella non valida.";
+  if (!isOwnable(s, tile)) return "Casella non valida.";
   const o = s.ownership[tile];
-  const t = tileAt(tile);
+  const t = tileAt(s, tile);
   if (o.ownerId !== p.id) return "Non possiedi questa proprietà.";
   if (t.kind !== "property" || !t.district) return "Si può costruire solo sulle proprietà delle regioni.";
   if (!ownsDistrict(s, p.id, t.district)) return "Devi possedere l'intera regione.";
   if (districtHasMortgage(s, t.district)) return "La regione ha proprietà ipotecate.";
   if (o.houses >= MAX_BUILDINGS) return "Edificio massimo già costruito.";
-  const minH = Math.min(...districtTiles(t.district).map((i) => s.ownership[i].houses));
+  const minH = Math.min(...districtTiles(s, t.district).map((i) => s.ownership[i].houses));
   if (o.houses > minH) return "Costruzione uniforme: costruisci prima sulle altre proprietà della regione.";
   if (p.balance < (t.houseCost ?? 0)) return "Fondi insufficienti.";
   return null;
 }
 
 export function canSellBuildingReason(s: GameState, p: PlayerState, tile: number): string | null {
-  if (!isOwnable(tile)) return "Casella non valida.";
+  if (!isOwnable(s, tile)) return "Casella non valida.";
   const o = s.ownership[tile];
-  const t = tileAt(tile);
+  const t = tileAt(s, tile);
   if (o.ownerId !== p.id) return "Non possiedi questa proprietà.";
   if (o.houses <= 0 || !t.district) return "Nessun edificio da vendere.";
-  const maxH = Math.max(...districtTiles(t.district).map((i) => s.ownership[i].houses));
+  const maxH = Math.max(...districtTiles(s, t.district).map((i) => s.ownership[i].houses));
   if (o.houses < maxH) return "Vendita uniforme: vendi prima dalle proprietà con più edifici.";
   return null;
 }
 
 export function canMortgageReason(s: GameState, p: PlayerState, tile: number): string | null {
-  if (!isOwnable(tile)) return "Casella non valida.";
+  if (!isOwnable(s, tile)) return "Casella non valida.";
   const o = s.ownership[tile];
   if (o.ownerId !== p.id) return "Non possiedi questa proprietà.";
   if (o.mortgaged) return "Già ipotecata.";
@@ -839,7 +841,7 @@ function doBuild(c: Ctx, p: PlayerState, tile: number) {
   requireOwnedProperty(s, p, tile);
   const reason = canBuildReason(s, p, tile);
   if (reason) throw new GameError("CANNOT_BUILD", reason);
-  const t = tileAt(tile);
+  const t = tileAt(s, tile);
   const o = s.ownership[tile];
   p.balance -= t.houseCost!;
   o.houses += 1;
@@ -857,7 +859,7 @@ function doSellBuilding(c: Ctx, p: PlayerState, tile: number) {
   requireOwnedProperty(s, p, tile);
   const reason = canSellBuildingReason(s, p, tile);
   if (reason) throw new GameError("CANNOT_SELL", reason);
-  const t = tileAt(tile);
+  const t = tileAt(s, tile);
   const o = s.ownership[tile];
   const refund = Math.floor(t.houseCost! / 2);
   const wasTower = o.houses === MAX_BUILDINGS;
@@ -874,7 +876,7 @@ function doMortgage(c: Ctx, p: PlayerState, tile: number) {
   requireOwnedProperty(s, p, tile);
   const reason = canMortgageReason(s, p, tile);
   if (reason) throw new GameError("CANNOT_MORTGAGE", reason);
-  const t = tileAt(tile);
+  const t = tileAt(s, tile);
   s.ownership[tile].mortgaged = true;
   p.balance += t.mortgage!;
   c.emit("mortgage", `${p.name} ipoteca ${t.name} (+${formatCr(t.mortgage!)}).`, p.id, { tile });
@@ -884,7 +886,7 @@ function doUnmortgage(c: Ctx, p: PlayerState, tile: number) {
   const s = c.s;
   const { o, t } = requireOwnedProperty(s, p, tile);
   if (!o.mortgaged) throw new GameError("NOT_MORTGAGED", "La proprietà non è ipotecata.");
-  const cost = unmortgageCost(tile);
+  const cost = unmortgageCost(s, tile);
   if (p.balance < cost) throw new GameError("INSUFFICIENT_FUNDS", `Servono ${formatCr(cost)} per riscattarla.`);
   p.balance -= cost;
   o.mortgaged = false;
@@ -901,7 +903,7 @@ function bankrupt(c: Ctx, p: PlayerState, creditorId: string | null) {
   const tiles = ownedTiles(s, p.id);
   for (const o of tiles) {
     if (o.houses > 0) {
-      estate += o.houses * Math.floor((tileAt(o.tile).houseCost ?? 0) / 2);
+      estate += o.houses * Math.floor((tileAt(s, o.tile).houseCost ?? 0) / 2);
       o.houses = 0;
     }
   }
@@ -969,7 +971,7 @@ function raiseFunds(c: Ctx, p: PlayerState, target: number) {
     }
     const mortgageable = ownedTiles(s, p.id)
       .filter((o) => canMortgageReason(s, p, o.tile) === null)
-      .sort((a, b) => (tileAt(a.tile).mortgage ?? 0) - (tileAt(b.tile).mortgage ?? 0));
+      .sort((a, b) => (tileAt(s, a.tile).mortgage ?? 0) - (tileAt(s, b.tile).mortgage ?? 0));
     if (mortgageable.length) {
       doMortgage(c, p, mortgageable[0].tile);
       continue;
@@ -1014,7 +1016,7 @@ export function validateTrade(s: GameState, t: Omit<TradeOffer, "id" | "status" 
   if (ints.some((n) => !Number.isInteger(n) || n < 0 || n > 1_000_000)) return "Importi non validi.";
   const allTiles = [...t.offerTiles, ...t.requestTiles];
   if (new Set(allTiles).size !== allTiles.length) return "Proprietà duplicate nella proposta.";
-  if (allTiles.some((i) => !Number.isInteger(i) || !isOwnable(i))) return "Proprietà non valide.";
+  if (allTiles.some((i) => !Number.isInteger(i) || !isOwnable(s, i))) return "Proprietà non valide.";
   if (t.offerTiles.some((i) => s.ownership[i].ownerId !== from.id)) return `${from.name} non possiede più tutte le proprietà offerte.`;
   if (t.requestTiles.some((i) => s.ownership[i].ownerId !== to.id)) return `${to.name} non possiede più tutte le proprietà richieste.`;
   if (allTiles.some((i) => !tileIsFreeOfBuildings(s, i))) return "Non si possono scambiare proprietà di regioni con edifici.";
@@ -1067,7 +1069,7 @@ function doPropose(c: Ctx, p: PlayerState, cmd: Extract<Command, { type: "PROPOS
   const committed = new Set(myPending.flatMap((t) => t.offerTiles));
   const clash = draft.offerTiles.find((i) => committed.has(i));
   if (clash != null) {
-    throw new GameError("TILE_COMMITTED", `${tileAt(clash).name} è già impegnata in un'altra tua proposta.`, 409);
+    throw new GameError("TILE_COMMITTED", `${tileAt(s, clash).name} è già impegnata in un'altra tua proposta.`, 409);
   }
   if (parent) {
     parent.status = "countered";

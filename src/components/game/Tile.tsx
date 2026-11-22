@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   Anchor,
   Anvil,
+  Bird,
+  Castle,
   Cog,
   Coins,
   Crown,
@@ -17,6 +19,8 @@ import {
   Gem,
   HandCoins,
   Lock,
+  Moon,
+  Mountain,
   Orbit,
   Shield,
   Ship,
@@ -53,6 +57,8 @@ export const TILE_ICONS: Record<string, LucideIcon> = {
   siren: Siren,
   flame: Flame,
   "hand-coins": HandCoins,
+  bird: Bird,
+  castle: Castle,
   // region emblems
   flask: FlaskConical,
   anchor: Anchor,
@@ -62,6 +68,8 @@ export const TILE_ICONS: Record<string, LucideIcon> = {
   swords: Swords,
   cog: Cog,
   shield: Shield,
+  moon: Moon,
+  mountain: Mountain,
 };
 
 interface Props {
@@ -71,6 +79,8 @@ interface Props {
   selected: boolean;
   highlight: boolean;
   goBonus: number;
+  /** Tiles per side of the current board (10 / 12 / 16). */
+  perSide: number;
   onSelect: (i: number) => void;
 }
 
@@ -81,7 +91,7 @@ function Houses({ n, vertical }: { n: number; vertical: boolean }) {
       <div className="flex items-center justify-center">
         <div
           className="rounded-[0.3cqmin] bg-gradient-to-b from-[#ff6b6b] to-[#c81e1e] shadow-[0_0.2cqmin_0.4cqmin_rgba(0,0,0,0.4)]"
-          style={vertical ? { width: "2.4cqmin", height: "1.6cqmin" } : { width: "1.6cqmin", height: "2.4cqmin" }}
+          style={vertical ? { width: "calc(2.4cqmin * var(--tf, 1))", height: "calc(1.6cqmin * var(--tf, 1))" } : { width: "calc(1.6cqmin * var(--tf, 1))", height: "calc(2.4cqmin * var(--tf, 1))" }}
           title="Fortezza"
         />
       </div>
@@ -94,7 +104,7 @@ function Houses({ n, vertical }: { n: number; vertical: boolean }) {
           key={i}
           title="Torretta"
           className="rounded-t-[0.5cqmin] rounded-b-[0.15cqmin] bg-gradient-to-b from-[#5ee08a] to-[#15803d] shadow-[0_0.15cqmin_0.3cqmin_rgba(0,0,0,0.4)]"
-          style={{ width: "1.15cqmin", height: "1.35cqmin" }}
+          style={{ width: "calc(1.15cqmin * var(--tf, 1))", height: "calc(1.35cqmin * var(--tf, 1))" }}
         />
       ))}
     </div>
@@ -104,13 +114,13 @@ function Houses({ n, vertical }: { n: number; vertical: boolean }) {
 function Emblem({ icon }: { icon: string }) {
   const E = TILE_ICONS[icon];
   if (!E) return null;
-  return <E className="text-white/85 drop-shadow" style={{ width: "1.7cqmin", height: "1.7cqmin" }} strokeWidth={2.4} />;
+  return <E className="text-white/85 drop-shadow" style={{ width: "calc(1.7cqmin * var(--tf, 1))", height: "calc(1.7cqmin * var(--tf, 1))" }} strokeWidth={2.4} />;
 }
 
-function TileImpl({ tile, own, ownerColor, selected, highlight, goBonus, onSelect }: Props) {
-  const { row, col } = tileGridPosition(tile.index);
-  const side = tileSide(tile.index);
-  const corner = isCorner(tile.index);
+function TileImpl({ tile, own, ownerColor, selected, highlight, goBonus, perSide, onSelect }: Props) {
+  const { row, col } = tileGridPosition(tile.index, perSide);
+  const side = tileSide(tile.index, perSide);
+  const corner = isCorner(tile.index, perSide);
   const horizontalTile = side === 1 || side === 3; // left/right tiles are wide & short
   const district = tile.district ? DISTRICTS[tile.district] : null;
   const Icon = tile.icon ? TILE_ICONS[tile.icon] : undefined;
@@ -120,7 +130,7 @@ function TileImpl({ tile, own, ownerColor, selected, highlight, goBonus, onSelec
   const dir =
     side === 0 ? "flex-col" : side === 2 ? "flex-col-reverse" : side === 1 ? "flex-row-reverse" : "flex-row";
 
-  const STRIP = "1.25cqmin";
+  const STRIP = "calc(1.25cqmin * var(--tf, 1))";
   const ownerStripStyle: React.CSSProperties | undefined = owner
     ? side === 0
       ? { bottom: 0, left: 0, right: 0, height: STRIP }
@@ -163,20 +173,20 @@ function TileImpl({ tile, own, ownerColor, selected, highlight, goBonus, onSelec
         aria-label={tile.name}
       >
         {tile.kind === "go" ? (
-          <ArrowLeft style={{ width: "4cqmin", height: "4cqmin" }} className="text-[#a8650a]" strokeWidth={3} />
+          <ArrowLeft style={{ width: "calc(4cqmin * var(--tf, 1))", height: "calc(4cqmin * var(--tf, 1))" }} className="text-[#a8650a]" strokeWidth={3} />
         ) : (
-          Icon && <Icon style={{ width: "3.6cqmin", height: "3.6cqmin" }} className="text-board-ink/80" />
+          Icon && <Icon style={{ width: "calc(3.6cqmin * var(--tf, 1))", height: "calc(3.6cqmin * var(--tf, 1))" }} className="text-board-ink/80" />
         )}
-        <div className="font-display font-extrabold leading-none" style={{ fontSize: "1.3cqmin" }}>
+        <div className="font-display font-extrabold leading-none" style={{ fontSize: "calc(1.3cqmin * var(--tf, 1))" }}>
           {label}
         </div>
         {tile.kind === "go" && (
-          <div className="font-bold text-[#8a5208]" style={{ fontSize: "1.1cqmin" }}>
+          <div className="font-bold text-[#8a5208]" style={{ fontSize: "calc(1.1cqmin * var(--tf, 1))" }}>
             +{goBonus} cr
           </div>
         )}
         {tile.kind === "jail" && (
-          <div className="font-semibold text-board-ink/70" style={{ fontSize: "0.9cqmin" }}>
+          <div className="font-semibold text-board-ink/70" style={{ fontSize: "calc(0.9cqmin * var(--tf, 1))" }}>
             / in visita
           </div>
         )}
@@ -223,7 +233,7 @@ function TileImpl({ tile, own, ownerColor, selected, highlight, goBonus, onSelec
             className={cn(
               tile.kind === "chance" ? "text-[#7c3aed]" : tile.kind === "community" ? "text-[#c98a17]" : "text-board-ink/75",
             )}
-            style={{ width: special ? "2.8cqmin" : "2.2cqmin", height: special ? "2.8cqmin" : "2.2cqmin" }}
+            style={{ width: special ? "calc(2.8cqmin * var(--tf, 1))" : "calc(2.2cqmin * var(--tf, 1))", height: special ? "calc(2.8cqmin * var(--tf, 1))" : "calc(2.2cqmin * var(--tf, 1))" }}
           />
         )}
         <div className="tile-sub text-board-ink/80">
@@ -232,7 +242,7 @@ function TileImpl({ tile, own, ownerColor, selected, highlight, goBonus, onSelec
       </div>
       {own?.mortgaged && (
         <div className="mortgaged-stripes pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="rounded bg-[#5b4422] px-[0.4cqmin] font-bold text-[#fff3d6]" style={{ fontSize: "0.8cqmin" }}>
+          <span className="rounded bg-[#5b4422] px-[0.4cqmin] font-bold text-[#fff3d6]" style={{ fontSize: "calc(0.8cqmin * var(--tf, 1))" }}>
             IPOTECA
           </span>
         </div>

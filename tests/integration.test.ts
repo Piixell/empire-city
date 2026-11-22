@@ -56,9 +56,9 @@ beforeAll(async () => {
 });
 
 describe("database schema", () => {
-  it("seeds 48 board tiles and both decks", async () => {
-    const tiles = await db.query(`select count(*)::int as n from board_tiles`);
-    expect(tiles[0].n).toBe(48);
+  it("seeds the three boards (40/48/64 tiles) and both decks", async () => {
+    const tiles = await db.query(`select board, count(*)::int as n from board_tiles group by board order by board`);
+    expect(tiles.map((t) => [t.board, t.n])).toEqual([["classic", 40], ["maxi", 64], ["standard", 48]]);
     const cards = await db.query(`select deck, count(*)::int as n from card_definitions group by deck order by deck`);
     expect(cards.map((c) => c.n).every((n) => n >= 20)).toBe(true);
   });
@@ -388,5 +388,57 @@ describe("game (scenarios 4-13)", () => {
     if (!snap.member) throw new Error();
     expect(snap.room.hostUserId).not.toBe(users[0]);
     expect(snap.players).toHaveLength(5);
+  });
+});
+
+describe("board variants on the database", () => {
+  it("runs a maxi game with 8 players end to end (board column + FKs on tiles > 47)", async () => {
+    const people = Array.from({ length: 8 }, () => randomUUID());
+    const { roomId: rid, code: c } = await createRoom(db, people[0], { name: "Maxi", maxPlayers: 6 });
+    // 7th and 8th seat need the maxi board
+    await updateSettings(db, people[0], rid, { settings: { board: "maxi", maxPlayers: 8 } });
+    for (let i = 1; i < 8; i++) await joinRoom(db, people[i], c, { name: `M${i}` });
+    const snap = await getRoomSnapshot(db, c, people[0]);
+    if (!snap.member) throw new Error("not member");
+    expect(snap.room.settings.board).toBe("maxi");
+    expect(snap.players).toHaveLength(8);
+    expect(new Set(snap.players.map((p) => p.color)).size).toBe(8);
+    // back to standard is refused while 8 players are seated
+    await expectApiError(updateSettings(db, people[0], rid, { settings: { board: "standard" } }), "TOO_MANY_PLAYERS");
+    for (const u of people) await setReady(db, u, rid, true);
+    const { gameId: gid } = await startGame(db, people[0], rid, seededRng(11));
+    const sess = await db.query(`select board, settings->>'board' as sboard from game_sessions where id = $1::uuid`, [gid]);
+    expect(sess[0]).toMatchObject({ board: "maxi", sboard: "maxi" });
+    const own = await db.query(
+      `select count(*)::int as n, min(board) as b from property_ownership where game_id = $1::uuid`,
+      [gid],
+    );
+    expect(own[0]).toMatchObject({ n: 45, b: "maxi" });
+    // buy a property beyond the standard board's last index
+    const state = (await db.query(`select public_state from game_sessions where id = $1::uuid`, [gid]))[0].public_state as PublicGameState;
+    const cur = state.players.find((p) => p.id === state.turn.playerId)!;
+    await db.query(`update game_players set position = 47 where id = $1::uuid`, [cur.id]);
+    const r = await applyGameCommand(db, { gameId: gid, userId: cur.userId, commandId: randomUUID(), command: { type: "ROLL" }, rng: scriptedDiceRng([1, 2]) });
+    expect(r.ok).toBe(true);
+    const after = (await db.query(`select public_state from game_sessions where id = $1::uuid`, [gid]))[0].public_state as PublicGameState;
+    expect(after.players.find((p) => p.id === cur.id)!.position).toBe(50);
+    if (after.turn.phase === "BUY") {
+      const b = await applyGameCommand(db, { gameId: gid, userId: cur.userId, commandId: randomUUID(), command: { type: "BUY" } });
+      expect(b.ok).toBe(true);
+      const row = await db.query(`select owner_player_id, board from property_ownership where game_id = $1::uuid and tile_idx = 50`, [gid]);
+      expect(row[0]).toMatchObject({ owner_player_id: cur.id, board: "maxi" });
+    }
+  });
+
+  it("rooms created with more than 6 seats get the maxi board; classic rooms clamp to 6", async () => {
+    const host = randomUUID();
+    const big = await createRoom(db, host, { name: "Big", maxPlayers: 8 });
+    const s1 = await getRoomSnapshot(db, big.code, host);
+    if (!s1.member) throw new Error();
+    expect([s1.room.settings.board, s1.room.maxPlayers]).toEqual(["maxi", 8]);
+    await updateSettings(db, host, big.roomId, { settings: { board: "classic" } });
+    const s2 = await getRoomSnapshot(db, big.code, host);
+    if (!s2.member) throw new Error();
+    expect([s2.room.settings.board, s2.room.maxPlayers]).toEqual(["classic", 6]);
   });
 });

@@ -2,7 +2,7 @@ import { applyCommand, createInitialState, type Rng } from "@/lib/game/engine";
 import { seededRng } from "@/lib/game/rng";
 import { DEFAULT_SETTINGS, type Command, type GameSettings, type GameState, type PlayerColor } from "@/lib/game/types";
 
-const COLORS: PlayerColor[] = ["red", "blue", "green", "yellow", "purple", "orange"];
+const COLORS: PlayerColor[] = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "teal"];
 
 export function newGame(n = 2, settings: Partial<GameSettings> = {}, now = 1_000_000): GameState {
   const players = Array.from({ length: n }, (_, i) => ({

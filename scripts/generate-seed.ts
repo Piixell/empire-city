@@ -2,8 +2,8 @@
 //   npm run db:generate-seed
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { buildSeedSql } from "../src/lib/server/seed-sql";
+import { SEED_MIGRATION_FILE, buildSeedSql } from "../src/lib/server/seed-sql";
 
-const out = path.resolve(import.meta.dirname, "../supabase/migrations/20261122000004_seed_board.sql");
+const out = path.resolve(import.meta.dirname, "../supabase/migrations", SEED_MIGRATION_FILE);
 writeFileSync(out, buildSeedSql(), "utf8");
 console.log(`Seed written to ${out}`);

@@ -12,6 +12,7 @@
 // Supabase Realtime then broadcasts the updated game_sessions row.
 // ---------------------------------------------------------------------------
 import { randomInt, randomUUID } from "node:crypto";
+import { boardOf } from "../game/board";
 import { applyCommand, GameError, toPublicState, type Rng } from "../game/engine";
 import type {
   AuctionState,
@@ -254,13 +255,14 @@ async function writeSession(q: Queryer, s: GameState, insert: boolean) {
     s.finishedAt,
     s.winnerId,
     s.finishReason,
+    boardOf(s.settings.board).id,
   ];
   if (insert) {
     await q.query(
       `insert into public.game_sessions (id, room_id, status, settings, version, turn_number, current_player_id, phase,
-          dice, doubles_count, turn_deadline, engine, public_state, started_at, ends_at, finished_at, winner_player_id, finish_reason)
+          dice, doubles_count, turn_deadline, engine, public_state, started_at, ends_at, finished_at, winner_player_id, finish_reason, board)
        values ($1::uuid, $2::uuid, $3, $4::jsonb, $5::int, $6::int, $7::uuid, $8, $9::jsonb, $10::int, ${ts(11)}, $12::jsonb,
-          $13::jsonb, ${ts(14)}, ${ts(15)}, ${ts(16)}, $17::uuid, $18)`,
+          $13::jsonb, ${ts(14)}, ${ts(15)}, ${ts(16)}, $17::uuid, $18, $19)`,
       params,
     );
   } else {
@@ -268,7 +270,7 @@ async function writeSession(q: Queryer, s: GameState, insert: boolean) {
       `update public.game_sessions set status = $3, settings = $4::jsonb, version = $5::int, turn_number = $6::int,
           current_player_id = $7::uuid, phase = $8, dice = $9::jsonb, doubles_count = $10::int, turn_deadline = ${ts(11)},
           engine = $12::jsonb, public_state = $13::jsonb, started_at = ${ts(14)}, ends_at = ${ts(15)}, finished_at = ${ts(16)},
-          winner_player_id = $17::uuid, finish_reason = $18, updated_at = now()
+          winner_player_id = $17::uuid, finish_reason = $18, board = $19, updated_at = now()
         where id = $1::uuid and room_id = $2::uuid`,
       params,
     );
@@ -322,10 +324,10 @@ export async function insertNewGame(q: Queryer, s: GameState) {
     [JSON.stringify(s.players.map((p) => playerRecord(s.id, p)))],
   );
   await q.query(
-    `insert into public.property_ownership (game_id, tile_idx, owner_player_id, houses, mortgaged)
-     select $1::uuid, x.tile, x.owner, x.houses, x.mortgaged
+    `insert into public.property_ownership (game_id, board, tile_idx, owner_player_id, houses, mortgaged)
+     select $1::uuid, $3, x.tile, x.owner, x.houses, x.mortgaged
        from jsonb_to_recordset($2::jsonb) as x(tile int, owner uuid, houses int, mortgaged boolean)`,
-    [s.id, JSON.stringify(Object.values(s.ownership).map((o) => ({ tile: o.tile, owner: o.ownerId, houses: o.houses, mortgaged: o.mortgaged })))],
+    [s.id, JSON.stringify(Object.values(s.ownership).map((o) => ({ tile: o.tile, owner: o.ownerId, houses: o.houses, mortgaged: o.mortgaged }))), boardOf(s.settings.board).id],
   );
   for (const kind of ["chance", "community"] as const) {
     await q.query(
@@ -386,11 +388,11 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
   if (next.auction && changed(prev.auction, next.auction)) {
     const a = next.auction;
     run(
-      `insert into public.game_auctions (id, game_id, tile_idx, status, high_bid, high_bidder_id, passed_player_ids, deadline, started_at)
-       values ($1::uuid, $2::uuid, $3::int, 'open', $4::int, $5::uuid, $6::jsonb, ${ts(7)}, ${ts(8)})
+      `insert into public.game_auctions (id, game_id, tile_idx, status, high_bid, high_bidder_id, passed_player_ids, deadline, started_at, board)
+       values ($1::uuid, $2::uuid, $3::int, 'open', $4::int, $5::uuid, $6::jsonb, ${ts(7)}, ${ts(8)}, $9)
        on conflict (id) do update set high_bid = excluded.high_bid, high_bidder_id = excluded.high_bidder_id,
          passed_player_ids = excluded.passed_player_ids, deadline = excluded.deadline`,
-      [a.id, gameId, a.tile, a.highBid, a.highBidderId, JSON.stringify(a.passedIds), a.deadline, a.startedAt],
+      [a.id, gameId, a.tile, a.highBid, a.highBidderId, JSON.stringify(a.passedIds), a.deadline, a.startedAt, boardOf(next.settings.board).id],
     );
   }
   for (const e of events) {

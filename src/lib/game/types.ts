@@ -2,10 +2,9 @@
 // Empire City — shared game types (used by the server engine and the client)
 // ---------------------------------------------------------------------------
 
-export const BOARD_SIZE = 48;
-export const JAIL_INDEX = 12;
-export const GO_TO_JAIL_INDEX = 36;
-export const MAX_PLAYERS = 6;
+/** Board variants: classic 40, standard 48, maxi 64 tiles (see board.ts). */
+export type BoardId = "classic" | "standard" | "maxi";
+export const MAX_PLAYERS = 8;
 export const MAX_BUILDINGS = 5; // 4 houses + 1 tower ("edificio principale")
 
 export type TileKind =
@@ -23,9 +22,11 @@ export type TileKind =
 export type DistrictKey =
   | "bassofondo"
   | "approdo"
+  | "paludi"
   | "sahrem"
   | "frontiera"
   | "kaori"
+  | "picchi"
   | "ferro"
   | "aurelia"
   | "argentea";
@@ -53,13 +54,15 @@ export interface TileDef {
   multipliers?: number[];
   taxAmount?: number;
   icon?: string;
+  /** Stable anchor used by cards (e.g. "palazzo-reale"); same on every board. */
+  key?: string;
 }
 
 export type DeckKind = "chance" | "community";
 
 export type CardEffect =
   | { type: "money"; amount: number }
-  | { type: "moveTo"; tile: number }
+  | { type: "moveTo"; to: string } // board anchor: "start", "jail", "palazzo-reale", ...
   | { type: "moveToNearest"; kind: "transport" | "utility" }
   | { type: "moveBy"; steps: number }
   | { type: "goToJail" }
@@ -76,7 +79,7 @@ export interface CardDef {
   effect: CardEffect;
 }
 
-export type PlayerColor = "red" | "blue" | "green" | "yellow" | "purple" | "orange";
+export type PlayerColor = "red" | "blue" | "green" | "yellow" | "purple" | "orange" | "pink" | "teal";
 export type TokenModel =
   | "car"
   | "ship"
@@ -98,6 +101,8 @@ export interface GameSettings {
   chatEnabled: boolean;
   /** 0 = nessun limite */
   maxDurationMinutes: number;
+  /** Board variant; legacy games without it use "standard". */
+  board: BoardId;
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -108,6 +113,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   auctionsEnabled: true,
   chatEnabled: true,
   maxDurationMinutes: 0,
+  board: "standard",
 };
 
 export interface PlayerStats {

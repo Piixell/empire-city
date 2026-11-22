@@ -14,7 +14,8 @@ import type { useRoom } from "@/hooks/useRoom";
 import { api, ApiClientError } from "@/lib/client/api";
 import { isLocalMode, saveName } from "@/lib/client/session";
 import { AVATAR_OPTIONS, COLOR_ORDER, PLAYER_COLORS, TOKEN_ICONS, TOKEN_ORDER } from "@/lib/client/ui-constants";
-import type { GameSettings } from "@/lib/game/types";
+import { BOARDS, BOARD_IDS, boardOf } from "@/lib/game/board";
+import type { BoardId, GameSettings } from "@/lib/game/types";
 import type { RoomPlayerView, RoomSnapshot } from "@/lib/server/rooms";
 import { cn } from "@/lib/utils";
 
@@ -105,7 +106,7 @@ export function Lobby({ room, code }: { room: Room; code: string }) {
                 {snap.players.length}/{snap.room.maxPlayers} posti · {snap.room.maxPlayers - snap.players.length} liberi
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className={cn("grid grid-cols-2 gap-3", snap.room.maxPlayers > 6 ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
               {Array.from({ length: snap.room.maxPlayers }).map((_, i) => {
                 const p = snap.players[i];
                 if (!p)
@@ -392,6 +393,7 @@ function SettingsCard({
   mutate: (a: string, b?: unknown, l?: string) => Promise<boolean>;
 }) {
   const s = snap.room.settings;
+  const board = boardOf(s.board);
   const [pw, setPw] = useState("");
   const set = (patch: Partial<GameSettings>) => mutate("settings", { settings: patch }, "settings");
   const disabled = !isHost || busy === "settings";
@@ -408,8 +410,28 @@ function SettingsCard({
         {!isHost && <Badge className="text-muted-foreground">Solo host</Badge>}
       </div>
       <div className="divide-y divide-border/60">
+        <Row label="Plancia">
+          <select
+            value={board.id}
+            disabled={disabled}
+            onChange={(e) => set({ board: e.target.value as BoardId })}
+            className="h-9 max-w-[13rem] rounded-lg border border-border bg-[#0b1222] px-2 text-sm font-semibold disabled:opacity-60"
+            aria-label="Plancia di gioco"
+          >
+            {BOARD_IDS.map((id) => (
+              <option key={id} value={id}>
+                {BOARDS[id].label} · max {BOARDS[id].maxPlayers}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <p className="pb-2 text-xs text-muted-foreground">{board.description}</p>
         <Row label="Giocatori massimi">
-          <Select value={snap.room.maxPlayers} options={[2, 3, 4, 5, 6]} onChange={(n) => set({ maxPlayers: n })} />
+          <Select
+            value={snap.room.maxPlayers}
+            options={Array.from({ length: board.maxPlayers - 1 }, (_, i) => i + 2)}
+            onChange={(n) => set({ maxPlayers: n })}
+          />
         </Row>
         <Row label="Capitale iniziale">
           <Select value={s.startingCash} options={[1000, 1500, 2000, 2500, 3000, 5000]} onChange={(n) => set({ startingCash: n })} suffix=" cr" />

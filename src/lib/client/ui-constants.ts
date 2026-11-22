@@ -20,9 +20,11 @@ export const PLAYER_COLORS: Record<PlayerColor, { hex: string; label: string; ri
   yellow: { hex: "#eab308", label: "Giallo", ring: "ring-yellow-400", soft: "rgba(234,179,8,0.2)" },
   purple: { hex: "#a855f7", label: "Viola", ring: "ring-purple-400", soft: "rgba(168,85,247,0.18)" },
   orange: { hex: "#f97316", label: "Arancione", ring: "ring-orange-400", soft: "rgba(249,115,22,0.18)" },
+  pink: { hex: "#ec4899", label: "Rosa", ring: "ring-pink-400", soft: "rgba(236,72,153,0.18)" },
+  teal: { hex: "#14b8a6", label: "Turchese", ring: "ring-teal-400", soft: "rgba(20,184,166,0.18)" },
 };
 
-export const COLOR_ORDER: PlayerColor[] = ["red", "blue", "green", "yellow", "purple", "orange"];
+export const COLOR_ORDER: PlayerColor[] = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "teal"];
 
 export const TOKEN_ICONS: Record<TokenModel, { icon: LucideIcon; label: string }> = {
   car: { icon: Car, label: "Auto sportiva" },

@@ -16,10 +16,10 @@ export const DECK_SHORT_NAMES: Record<DeckKind, string> = {
 
 export const CARDS: CardDef[] = [
   // ------------------------------- Destino Arcano ---------------------------
-  { id: "ch01", deck: "chance", title: "Richiamo alla Fontana", text: "Un incantesimo di ritorno ti riporta alla Fontana della Rinascita. Ritira il bonus.", effect: { type: "moveTo", tile: 0 } },
-  { id: "ch02", deck: "chance", title: "Udienza a corte", text: "Il sovrano di Argentea ti convoca: avanza fino al Palazzo Reale d'Argento.", effect: { type: "moveTo", tile: 47 } },
-  { id: "ch03", deck: "chance", title: "Pellegrinaggio spirituale", text: "Avanza fino al Tempio del Vento. Se passi dalla Fontana della Rinascita ritira il bonus.", effect: { type: "moveTo", tile: 25 } },
-  { id: "ch04", deck: "chance", title: "Miraggio nel deserto", text: "Avanza fino all'Oasi Nascosta. Se passi dalla Fontana della Rinascita ritira il bonus.", effect: { type: "moveTo", tile: 13 } },
+  { id: "ch01", deck: "chance", title: "Richiamo alla Fontana", text: "Un incantesimo di ritorno ti riporta alla Fontana della Rinascita. Ritira il bonus.", effect: { type: "moveTo", to: "start" } },
+  { id: "ch02", deck: "chance", title: "Udienza a corte", text: "Il sovrano di Argentea ti convoca: avanza fino al Palazzo Reale d'Argento.", effect: { type: "moveTo", to: "palazzo-reale" } },
+  { id: "ch03", deck: "chance", title: "Pellegrinaggio spirituale", text: "Avanza fino al Tempio del Vento. Se passi dalla Fontana della Rinascita ritira il bonus.", effect: { type: "moveTo", to: "tempio-vento" } },
+  { id: "ch04", deck: "chance", title: "Miraggio nel deserto", text: "Avanza fino all'Oasi Nascosta. Se passi dalla Fontana della Rinascita ritira il bonus.", effect: { type: "moveTo", to: "oasi" } },
   { id: "ch05", deck: "chance", title: "Varco instabile", text: "Un varco ti risucchia fino al trasporto più vicino. Se ha un padrone, paghi il doppio del pedaggio.", effect: { type: "moveToNearest", kind: "transport" } },
   { id: "ch06", deck: "chance", title: "Ritirata strategica", text: "Raggiungi il trasporto più vicino. Se ha un padrone, paghi il doppio del pedaggio.", effect: { type: "moveToNearest", kind: "transport" } },
   { id: "ch07", deck: "chance", title: "Sete di mana", text: "Raggiungi la fonte arcana più vicina. Se ha un padrone, paghi 10 volte il risultato dei dadi.", effect: { type: "moveToNearest", kind: "utility" } },
@@ -33,10 +33,10 @@ export const CARDS: CardDef[] = [
   { id: "ch15", deck: "chance", title: "Pozione esplosa", text: "Un esperimento alchemico finisce male: paga 120 crediti di danni.", effect: { type: "money", amount: -120 } },
   { id: "ch16", deck: "chance", title: "Assedio alle mura", text: "Ripara le difese: paga 30 crediti per ogni torretta e 120 per ogni fortezza.", effect: { type: "repairs", perHouse: 30, perTower: 120 } },
   { id: "ch17", deck: "chance", title: "Capitano della spedizione", text: "Guidi la spedizione e paghi le provviste: versa 40 crediti a ogni giocatore.", effect: { type: "payEach", amount: 40 } },
-  { id: "ch18", deck: "chance", title: "Viaggio carovaniero", text: "Avanza fino alla Carovana delle Dune. Se passi dalla Fontana della Rinascita ritira il bonus.", effect: { type: "moveTo", tile: 29 } },
+  { id: "ch18", deck: "chance", title: "Viaggio carovaniero", text: "Avanza fino alla Carovana delle Dune. Se passi dalla Fontana della Rinascita ritira il bonus.", effect: { type: "moveTo", to: "carovana" } },
   { id: "ch19", deck: "chance", title: "Reliquia venduta", text: "Un collezionista compra una tua reliquia: ricevi 60 crediti.", effect: { type: "money", amount: 60 } },
   { id: "ch20", deck: "chance", title: "Banchetto dei mercenari", text: "Offri da bere ai mercenari: paga 50 crediti.", effect: { type: "money", amount: -50 } },
-  { id: "ch21", deck: "chance", title: "Consiglio di guerra", text: "Il generale ti attende: avanza fino al Bastione del Generale.", effect: { type: "moveTo", tile: 35 } },
+  { id: "ch21", deck: "chance", title: "Consiglio di guerra", text: "Il generale ti attende: avanza fino al Bastione del Generale.", effect: { type: "moveTo", to: "bastione" } },
   { id: "ch22", deck: "chance", title: "Nebbia magica", text: "Ti perdi nella nebbia: torna indietro di 2 caselle.", effect: { type: "moveBy", steps: -2 } },
 
   // ----------------------------- Tesoro della Gilda --------------------------
@@ -46,7 +46,7 @@ export const CARDS: CardDef[] = [
   { id: "co04", deck: "community", title: "Fiera della gilda", text: "Le tue merci vanno a ruba alla fiera: ricevi 50 crediti.", effect: { type: "money", amount: 50 } },
   { id: "co05", deck: "community", title: "Grazia del sovrano", text: "Esci gratis dalle Segrete. Conserva questa carta finché non la usi o la scambi.", effect: { type: "jailFree" } },
   { id: "co06", deck: "community", title: "Accusa di tradimento", text: "Vai direttamente nelle Segrete del Re senza passare dalla Fontana della Rinascita.", effect: { type: "goToJail" } },
-  { id: "co07", deck: "community", title: "Rinascita", text: "Torni alla Fontana della Rinascita: ritira il bonus.", effect: { type: "moveTo", tile: 0 } },
+  { id: "co07", deck: "community", title: "Rinascita", text: "Torni alla Fontana della Rinascita: ritira il bonus.", effect: { type: "moveTo", to: "start" } },
   { id: "co08", deck: "community", title: "Festa del raccolto", text: "Organizzi la festa: ogni giocatore ti versa 25 crediti.", effect: { type: "collectFromEach", amount: 25 } },
   { id: "co09", deck: "community", title: "Anniversario della gilda", text: "È la tua festa: ogni giocatore ti regala 50 crediti.", effect: { type: "collectFromEach", amount: 50 } },
   { id: "co10", deck: "community", title: "Addestramento all'accademia", text: "Paga 100 crediti per il corso di scherma.", effect: { type: "money", amount: -100 } },
@@ -56,7 +56,7 @@ export const CARDS: CardDef[] = [
   { id: "co14", deck: "community", title: "Quota della gilda", text: "Paga 50 crediti di quota annuale alla gilda.", effect: { type: "money", amount: -50 } },
   { id: "co15", deck: "community", title: "Torneo di tiro con l'arco", text: "Arrivi secondo al torneo: ricevi 10 crediti.", effect: { type: "money", amount: 10 } },
   { id: "co16", deck: "community", title: "Dividendi della carovana", text: "I commerci della carovana rendono bene: ricevi 80 crediti.", effect: { type: "money", amount: 80 } },
-  { id: "co17", deck: "community", title: "Visita ai prigionieri", text: "Porti viveri ai prigionieri: spostati sulle Segrete del Re (solo in visita).", effect: { type: "moveTo", tile: 12 } },
+  { id: "co17", deck: "community", title: "Visita ai prigionieri", text: "Porti viveri ai prigionieri: spostati sulle Segrete del Re (solo in visita).", effect: { type: "moveTo", to: "jail" } },
   { id: "co18", deck: "community", title: "Armatura da riforgiare", text: "Paga 150 crediti al fabbro per l'armatura nuova.", effect: { type: "money", amount: -150 } },
   { id: "co19", deck: "community", title: "Benedizione degli spiriti", text: "Gli spiriti dell'isola ti premiano: ricevi 150 crediti.", effect: { type: "money", amount: 150 } },
   { id: "co20", deck: "community", title: "Strada sbarrata", text: "Una frana blocca il passo: torna indietro di 2 caselle.", effect: { type: "moveBy", steps: -2 } },

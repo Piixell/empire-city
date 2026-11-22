@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BOARD, DISTRICTS, OWNABLE_TILES, districtTiles, unmortgageCost } from "@/lib/game/board";
+import { BOARDS, districtTiles, unmortgageCost } from "@/lib/game/board";
 import { CARDS, cardsOfDeck } from "@/lib/game/cards";
 import { GameError, applyCommand, toPublicState } from "@/lib/game/engine";
 import { scriptedDiceRng, seededRng } from "@/lib/game/rng";
 import { computeRent, computeStandings, netWorth } from "@/lib/game/rules";
-import { JAIL_INDEX } from "@/lib/game/types";
 import { Harness, newGame } from "./helpers";
+
+// The original engine tests run on the standard 48-tile board.
+const BOARD = BOARDS.standard.tiles;
+const OWNABLE_TILES = BOARDS.standard.ownable;
+const JAIL_INDEX = BOARDS.standard.jailIndex;
 
 function expectGameError(fn: () => unknown, code: string) {
   try {
@@ -34,7 +38,7 @@ describe("board & decks", () => {
   });
 
   it("has 8 districts: six of 3 and two of 4, with progressive prices", () => {
-    const sizes = Object.keys(DISTRICTS).map((d) => districtTiles(d as never).length).sort();
+    const sizes = BOARDS.standard.districts.map((d) => districtTiles("standard", d).length).sort();
     expect(sizes).toEqual([3, 3, 3, 3, 3, 3, 4, 4]);
     const props = BOARD.filter((t) => t.kind === "property");
     for (let i = 1; i < props.length; i++) expect(props[i].price!).toBeGreaterThanOrEqual(props[i - 1].price!);
@@ -202,7 +206,7 @@ describe("auctions", () => {
 describe("buildings and mortgages", () => {
   function withBassofondo() {
     const g = newGame(2);
-    for (const i of districtTiles("bassofondo")) g.ownership[i].ownerId = "p1";
+    for (const i of districtTiles("standard", "bassofondo")) g.ownership[i].ownerId = "p1";
     return g;
   }
 
@@ -243,8 +247,8 @@ describe("buildings and mortgages", () => {
     h.run("u2", { type: "MORTGAGE", tile: 3 });
     expect(h.p("p2").balance).toBe(2035);
     h.run("u2", { type: "UNMORTGAGE", tile: 3 });
-    expect(h.p("p2").balance).toBe(2035 - unmortgageCost(3));
-    expect(unmortgageCost(3)).toBe(39);
+    expect(h.p("p2").balance).toBe(2035 - unmortgageCost("standard", 3));
+    expect(unmortgageCost("standard", 3)).toBe(39);
     h.run("u2", { type: "MORTGAGE", tile: 3 });
     h.s.turn.playerId = "p1";
     h.run("u1", { type: "ROLL" });
@@ -339,7 +343,7 @@ describe("trades", () => {
 
   it("refuses trading properties of districts with buildings", () => {
     const g = newGame(2);
-    for (const i of districtTiles("bassofondo")) g.ownership[i].ownerId = "p1";
+    for (const i of districtTiles("standard", "bassofondo")) g.ownership[i].ownerId = "p1";
     g.ownership[1].houses = 1;
     const h = new Harness(g, seededRng(3));
     expectGameError(
@@ -362,7 +366,7 @@ describe("trades", () => {
 describe("debts, bankruptcy and victory", () => {
   it("forces raising funds, then bankruptcy transfers assets to the creditor and ends the game", () => {
     const g = newGame(2);
-    for (const i of districtTiles("argentea")) g.ownership[i].ownerId = "p2";
+    for (const i of districtTiles("standard", "argentea")) g.ownership[i].ownerId = "p2";
     g.ownership[47].houses = 5;
     g.ownership[43].houses = 4;
     g.ownership[45].houses = 4;

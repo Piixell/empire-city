@@ -97,10 +97,10 @@ export function ActionPanel() {
       {isMyTurn && phase === "BUY" && game.turn.pendingTile != null && me && (
         <div className="rounded-xl border border-primary/40 bg-primary/10 p-3">
           <div className="text-sm">
-            <strong>{tileAt(game.turn.pendingTile).name}</strong> è in vendita a <strong>{cr(tileAt(game.turn.pendingTile).price ?? 0)} cr</strong>.
+            <strong>{tileAt(game, game.turn.pendingTile).name}</strong> è in vendita a <strong>{cr(tileAt(game, game.turn.pendingTile).price ?? 0)} cr</strong>.
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <Button size="sm" disabled={!!busy || me.balance < (tileAt(game.turn.pendingTile).price ?? 0)} onClick={() => send({ type: "BUY" })}>
+            <Button size="sm" disabled={!!busy || me.balance < (tileAt(game, game.turn.pendingTile).price ?? 0)} onClick={() => send({ type: "BUY" })}>
               <Banknote /> Acquista
             </Button>
             <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => send({ type: "DECLINE_BUY" })}>
@@ -149,7 +149,7 @@ export function ActionPanel() {
       )}
       {phase === "AUCTION" && game.auction && (
         <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm">
-          <Gavel className="mr-1 inline size-4 text-primary" /> Asta per <strong>{tileAt(game.auction.tile).name}</strong>: offerta {cr(game.auction.highBid)} cr
+          <Gavel className="mr-1 inline size-4 text-primary" /> Asta per <strong>{tileAt(game, game.auction.tile).name}</strong>: offerta {cr(game.auction.highBid)} cr
         </div>
       )}
 
