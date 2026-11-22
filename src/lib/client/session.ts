@@ -3,7 +3,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+// Legacy "anon" key or the new "publishable" key (name used by the Vercel integration).
+const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 
 /** Local mode: no Supabase configured (dev only) — PGlite + polling + per-tab identity. */
 export const isLocalMode = !URL || !KEY;
