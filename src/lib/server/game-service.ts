@@ -472,7 +472,7 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
       `update public.game_turns set ended_at = ${ts(3)} where game_id = $1::uuid and turn_number = $2::int and ended_at is null`,
       [gameId, next.turn.number, next.finishedAt],
     );
-    run(`update public.game_rooms set status = 'finished', updated_at = now() where id = $1::uuid`, [next.roomId]);
+    run(`update public.game_rooms set status = 'finished', updated_at = now(), revision = revision + 1 where id = $1::uuid`, [next.roomId]);
   }
   await Promise.all(ops);
 }

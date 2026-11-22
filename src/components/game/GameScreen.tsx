@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, LogOut, MessageSquare, ScrollText, Swords, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -15,11 +15,9 @@ import {
   JailDialog,
   ManageDialog,
   PortfolioDialog,
-  Spotlight,
   TradeDialog,
-  type SpotlightItem,
 } from "@/components/game/dialogs";
-import { EventLog } from "@/components/game/EventLog";
+import { EventLog, isChatEvent } from "@/components/game/EventLog";
 import { PlayersPanel } from "@/components/game/PlayersPanel";
 import { Results } from "@/components/game/Results";
 import { AnimatedNumber } from "@/components/game/AnimatedNumber";
@@ -28,10 +26,8 @@ import { Chat } from "@/components/room/Chat";
 import { Button } from "@/components/ui/button";
 import type { useRoom } from "@/hooks/useRoom";
 import { api, ApiClientError } from "@/lib/client/api";
-import { getCard } from "@/lib/game/cards";
 import { activeDeadline } from "@/lib/game/engine";
 import { PLAYER_COLORS } from "@/lib/client/ui-constants";
-import type { DeckKind } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 
 type Room = ReturnType<typeof useRoom>;
@@ -50,23 +46,15 @@ function GameLayout() {
   const { game, me, room, code, send, now, myUserId } = useGame();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("actions");
-  const [sideTab, setSideTab] = useState<"log" | "chat">("log");
-  const [spot, setSpot] = useState<SpotlightItem | null>(null);
-  const spotQueue = useRef<SpotlightItem[]>([]);
+  const [sideTab, setSideTab] = useState<"log" | "chat">("chat");
   const lastSeq = useRef<number>(Math.max(0, ...game.log.map((e) => e.seq)));
   const gameIdRef = useRef(game.id);
   const [unreadChat, setUnreadChat] = useState(0);
   const chatLen = useRef(room.chat.length);
 
-  const nextSpot = useCallback(() => {
-    setSpot(spotQueue.current.shift() ?? null);
-  }, []);
-  const pushSpot = useCallback((item: SpotlightItem) => {
-    spotQueue.current.push(item);
-    setSpot((cur) => cur ?? spotQueue.current.shift() ?? null);
-  }, []);
-
-  // --- process new events: notifications, card popups, rent windows -------
+  // Game events are NOT shown as pop-ups or toasts: they appear in the chat
+  // (see chatEvents below). Only the tab title signals your turn while the
+  // window is in the background.
   useEffect(() => {
     if (gameIdRef.current !== game.id) {
       gameIdRef.current = game.id;
@@ -76,57 +64,8 @@ function GameLayout() {
     const fresh = game.log.filter((e) => e.seq > lastSeq.current);
     if (!fresh.length) return;
     lastSeq.current = Math.max(...fresh.map((e) => e.seq));
-    if (fresh.length > 40) return; // reconnect catch-up: don't spam
-    const nameColor = (id: string | null) => PLAYER_COLORS[game.players.find((p) => p.id === id)?.color ?? "blue"].hex;
-    for (const e of fresh) {
-      const d = (e.data ?? {}) as Record<string, unknown>;
-      const mine = !!me && e.playerId === me.id;
-      switch (e.type) {
-        case "card": {
-          const card = getCard(String(d.cardId));
-          const who = game.players.find((p) => p.id === e.playerId)?.name ?? "";
-          pushSpot({ id: e.seq, kind: "card", deck: d.deck as DeckKind, title: card.title, text: `${who}: ${card.text}`, color: nameColor(e.playerId) });
-          break;
-        }
-        case "rent": {
-          const toMe = !!me && d.creditorId === me.id;
-          if (mine || toMe) pushSpot({ id: e.seq, kind: "rent", title: mine ? "Paghi l'affitto" : "Incassi un affitto!", text: e.message, color: nameColor(e.playerId) });
-          else toast(e.message);
-          break;
-        }
-        case "jail":
-          if (mine) pushSpot({ id: e.seq, kind: "jail", title: "Catturato!", text: e.message });
-          else toast(e.message, { icon: "🚔" });
-          break;
-        case "bankrupt":
-          pushSpot({ id: e.seq, kind: "bankrupt", title: "Bancarotta!", text: e.message, color: nameColor(e.playerId) });
-          break;
-        case "buy":
-        case "auctionWon":
-        case "tradeAccepted":
-        case "build":
-          if (!mine) toast(e.message);
-          else if (e.type !== "build") toast.success(e.message);
-          break;
-        case "tradeProposed":
-        case "tradeCounter":
-          if (me && d.toId === me.id) toast.info(`${e.message} Controlla il pannello Azioni.`, { duration: 6000 });
-          break;
-        case "turn":
-          if (mine) {
-            toast.success("È il tuo turno!", { duration: 2500 });
-            try {
-              if (document.visibilityState !== "visible") document.title = "🎲 Tocca a te! — Empire City";
-            } catch {
-              /* ignore */
-            }
-          }
-          break;
-        case "debt":
-          if (mine) toast.error(e.message, { duration: 6000 });
-          break;
-      }
-    }
+    const myTurnStarted = fresh.some((e) => e.type === "turn" && !!me && e.playerId === me.id);
+    if (myTurnStarted && document.visibilityState !== "visible") document.title = "🎲 Tocca a te! — Empire City";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.version, game.id]);
 
@@ -180,10 +119,18 @@ function GameLayout() {
     }
   }
 
+  const chatEvents = useMemo(() => game.log.filter(isChatEvent), [game.log]);
+  const playerColors = useMemo(
+    () => Object.fromEntries(game.players.map((p) => [p.id, PLAYER_COLORS[p.color].hex])),
+    [game.players],
+  );
+
   const chat = (
     <Chat
       code={code}
       messages={room.chat}
+      events={chatEvents}
+      playerColors={playerColors}
       myUserId={room.myUserId}
       enabled={room.snapshot?.room.settings.chatEnabled ?? true}
       onSent={room.appendChat}
@@ -301,7 +248,6 @@ function GameLayout() {
       <TradeDialog />
       <PortfolioDialog />
       <Results />
-      <Spotlight item={spot} onDone={nextSpot} />
     </div>
   );
 }

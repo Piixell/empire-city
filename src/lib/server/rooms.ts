@@ -49,6 +49,8 @@ export interface RoomView {
   settings: GameSettings;
   currentGameId: string | null;
   createdAt: string;
+  /** Monotonic counter bumped by every room mutation (stale-snapshot guard). */
+  revision: number;
 }
 
 export interface RoomSnapshot {
@@ -118,6 +120,7 @@ function roomView(r: Row): RoomView {
     settings: { ...DEFAULT_SETTINGS, ...jsonObject(r.settings), maxPlayers: r.max_players },
     currentGameId: r.current_game_id,
     createdAt: new Date(r.created_at).toISOString(),
+    revision: Number(r.revision ?? 0),
   };
 }
 
@@ -175,7 +178,7 @@ function firstFree<T extends string>(all: readonly T[], taken: Set<string>): T |
 }
 
 async function touchRoom(q: Queryer, roomId: string) {
-  await q.query(`update public.game_rooms set updated_at = now() where id = $1::uuid`, [roomId]);
+  await q.query(`update public.game_rooms set updated_at = now(), revision = revision + 1 where id = $1::uuid`, [roomId]);
 }
 
 // ------------------------------ snapshot -----------------------------------
@@ -419,7 +422,7 @@ export async function updateSettings(
     }
     await q.query(
       `update public.game_rooms set settings = $2::jsonb, max_players = $3::int,
-          has_password = case when $4::boolean is null then has_password else $4::boolean end, updated_at = now()
+          has_password = case when $4::boolean is null then has_password else $4::boolean end, updated_at = now(), revision = revision + 1
         where id = $1::uuid`,
       [roomId, JSON.stringify(merged), merged.maxPlayers, input.password === undefined ? null : !!passwordHash],
     );
@@ -462,7 +465,7 @@ export async function startGame(db: Database, userId: string, roomId: string, rn
     });
     await insertNewGame(q, state);
     await q.query(
-      `update public.game_rooms set status = 'playing', current_game_id = $2::uuid, updated_at = now() where id = $1::uuid`,
+      `update public.game_rooms set status = 'playing', current_game_id = $2::uuid, updated_at = now(), revision = revision + 1 where id = $1::uuid`,
       [roomId, gameId],
     );
     await systemMessage(q, roomId, "La partita è iniziata. Buona fortuna!");
@@ -496,12 +499,12 @@ export async function leaveRoom(db: Database, userId: string, roomId: string) {
     await systemMessage(q, roomId, `${me.display_name} ha lasciato la stanza.`);
     const remaining = await activePlayers(q, roomId);
     if (!remaining.length) {
-      await q.query(`update public.game_rooms set status = 'closed', updated_at = now() where id = $1::uuid`, [roomId]);
+      await q.query(`update public.game_rooms set status = 'closed', updated_at = now(), revision = revision + 1 where id = $1::uuid`, [roomId]);
       return;
     }
     if (r.host_user_id === userId) {
       const heir = remaining[0];
-      await q.query(`update public.game_rooms set host_user_id = $2::uuid, updated_at = now() where id = $1::uuid`, [roomId, heir.user_id]);
+      await q.query(`update public.game_rooms set host_user_id = $2::uuid, updated_at = now(), revision = revision + 1 where id = $1::uuid`, [roomId, heir.user_id]);
       await systemMessage(q, roomId, `${heir.display_name} è il nuovo host.`);
     } else {
       await touchRoom(q, roomId);
@@ -516,7 +519,7 @@ export async function rematch(db: Database, userId: string, roomId: string) {
     if (r.status !== "finished") throw conflict("NOT_FINISHED", "La partita non è ancora terminata.");
     await q.query(`update public.room_players set is_ready = false where room_id = $1::uuid`, [roomId]);
     await q.query(
-      `update public.game_rooms set status = 'lobby', current_game_id = null, updated_at = now() where id = $1::uuid`,
+      `update public.game_rooms set status = 'lobby', current_game_id = null, updated_at = now(), revision = revision + 1 where id = $1::uuid`,
       [roomId],
     );
     await systemMessage(q, roomId, "L'host ha preparato una nuova partita con gli stessi partecipanti.");

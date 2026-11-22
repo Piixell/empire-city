@@ -51,6 +51,7 @@ export function useRoom(code: string) {
   });
   const gameRef = useRef<PublicGameState | null>(null);
   const snapSig = useRef<string>("");
+  const roomRevRef = useRef<number>(-1);
   const roomIdRef = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inflight = useRef(false);
@@ -74,7 +75,11 @@ export function useRoom(code: string) {
         setState((s) => ({ ...s, loading: false, preview: snap, snapshot: null, error: null, errorCode: null }));
         return;
       }
+      // Out-of-order responses (a slow GET finishing after a newer mutation
+      // response) must never roll the room back: compare the room revision.
+      if (roomIdRef.current === snap.room.id && snap.room.revision < roomRevRef.current) return;
       roomIdRef.current = snap.room.id;
+      roomRevRef.current = snap.room.revision;
       if (!snap.game) {
         gameRef.current = null;
       }
@@ -252,7 +257,8 @@ export function useRoom(code: string) {
   // safety-net polling + focus/online recovery
   useEffect(() => {
     if (!roomId && !state.preview) return;
-    const interval = isLocalMode ? 1200 : state.connection === "live" ? 15000 : 3000;
+    const inLobby = state.snapshot?.room.status === "lobby";
+    const interval = isLocalMode ? 1200 : state.connection !== "live" ? 3000 : inLobby ? 5000 : 10000;
     const id = setInterval(() => {
       if (document.visibilityState === "visible" || isLocalMode) void refresh();
     }, interval);
@@ -266,7 +272,7 @@ export function useRoom(code: string) {
       window.removeEventListener("online", onWake);
       document.removeEventListener("visibilitychange", onWake);
     };
-  }, [roomId, state.preview, state.connection, refresh]);
+  }, [roomId, state.preview, state.connection, state.snapshot?.room.status, refresh]);
 
   const appendChat = useCallback((m: ChatMessageView) => setState((s) => ({ ...s, chat: mergeChat(s.chat, [m]) })), []);
 

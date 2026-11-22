@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowLeftRight, Banknote, Building2, Dices, Gavel, Hammer, HandCoins, Landmark, Lock, Skull, Ticket, Unlock } from "lucide-react";
 import { useGame } from "@/components/game/context";
 import { PropertyCard } from "@/components/game/PropertyCard";
@@ -622,61 +622,5 @@ export function PortfolioDialog() {
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ----------------------------------------------------------- Spotlight ----
-export interface SpotlightItem {
-  id: number;
-  kind: "card" | "rent" | "jail" | "bankrupt" | "info";
-  title: string;
-  text: string;
-  color?: string;
-  deck?: "chance" | "community";
-}
-
-export function Spotlight({ item, onDone }: { item: SpotlightItem | null; onDone: () => void }) {
-  useEffect(() => {
-    if (!item) return;
-    const t = setTimeout(onDone, item.kind === "card" ? 4200 : 3000);
-    return () => clearTimeout(t);
-  }, [item, onDone]);
-  return (
-    <AnimatePresence>
-      {item && (
-        <motion.div
-          key={item.id}
-          className="fixed inset-0 z-[45] flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onDone}
-        >
-          <div className="absolute inset-0 bg-black/30" />
-          <motion.div
-            initial={{ rotateY: 90, scale: 0.7 }}
-            animate={{ rotateY: 0, scale: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 220, damping: 20 }}
-            className={cn(
-              "relative w-full max-w-sm overflow-hidden rounded-2xl p-6 text-center shadow-2xl",
-              item.kind === "card"
-                ? item.deck === "chance"
-                  ? "bg-gradient-to-b from-[#f1e9ff] to-[#cdb6fa] text-[#3b0f8c]"
-                  : "bg-gradient-to-b from-[#fff4d6] to-[#fde6a6] text-[#5a3a05]"
-                : "glass text-foreground",
-            )}
-            style={item.color ? { boxShadow: `0 0 0 3px ${item.color}, 0 30px 60px -20px rgba(0,0,0,0.7)` } : undefined}
-          >
-            <div className="text-xs font-bold uppercase tracking-[0.3em] opacity-70">
-              {item.kind === "card" ? (item.deck === "chance" ? "Destino Arcano" : "Tesoro della Gilda") : item.kind === "rent" ? "Affitto" : item.kind === "jail" ? "Segrete del Re" : item.kind === "bankrupt" ? "Bancarotta" : "Avviso"}
-            </div>
-            <div className="mt-2 font-display text-2xl font-extrabold">{item.title}</div>
-            <p className="mt-3 text-sm leading-relaxed opacity-90">{item.text}</p>
-            <div className="mt-4 text-[11px] opacity-60">tocca per chiudere</div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   );
 }

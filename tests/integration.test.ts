@@ -148,6 +148,23 @@ describe("lobby (scenarios 1-3)", () => {
     expect(snap.players.find((p) => p.userId === users[1])!.isReady).toBe(false);
   });
 
+  it("every lobby change bumps the room revision (clients drop stale snapshots)", async () => {
+    const rev = async () => {
+      const s = await getRoomSnapshot(db, code, users[0]);
+      if (!s.member) throw new Error();
+      return s.room.revision;
+    };
+    const r0 = await rev();
+    await setReady(db, users[2], roomId, true);
+    const r1 = await rev();
+    expect(r1).toBeGreaterThan(r0);
+    await setReady(db, users[2], roomId, false);
+    const r2 = await rev();
+    expect(r2).toBeGreaterThan(r1);
+    await updateProfile(db, users[2], roomId, { name: "Player 3" });
+    expect(await rev()).toBeGreaterThan(r2);
+  });
+
   it("chat is sanitized and rate limited", async () => {
     const m = await postChat(db, users[2], roomId, "ciao a tutti");
     expect(m.body).toBe("ciao a tutti");

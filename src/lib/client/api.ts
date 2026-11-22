@@ -16,11 +16,13 @@ export class ApiClientError extends Error {
 
 async function rawFetch<T>(path: string, init: { method?: string; body?: unknown }): Promise<T> {
   const { token } = await getIdentity();
+  // A request must never hang forever: it would block every later refresh.
   const res = await fetch(path, {
     method: init.method ?? "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
