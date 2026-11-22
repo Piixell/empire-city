@@ -72,8 +72,8 @@ export default function HomePage() {
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <Logo size="lg" />
             <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-              Il gioco da tavolo immobiliare per <strong className="text-foreground">fino a 6 amici online</strong>. Conquista le regioni di Valoria,
-              erigi torrette e fortezze, tratta senza pietà e manda in bancarotta gli avversari su una plancia maxi da 48 caselle.
+              Il gioco da tavolo immobiliare per <strong className="text-foreground">fino a 8 amici online</strong>. Conquista le regioni di Valoria,
+              erigi torrette e fortezze, tratta senza pietà e manda in bancarotta gli avversari su plance da 40, 48 o 64 caselle.
             </p>
             <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
               {[
