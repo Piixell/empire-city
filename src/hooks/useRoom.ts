@@ -182,6 +182,15 @@ export function useRoom(code: string) {
       if (cancelled) return;
       channel = sb.channel(`room:${roomId}`, { config: { presence: { key: myUserId } } });
       channel
+        // Fast path: the server broadcasts a data-less "sync" nudge right after
+        // every committed write; we fetch the authoritative state immediately.
+        .on("broadcast", { event: "sync" }, (msg) => {
+          const nudge = (msg.payload ?? {}) as { kind?: string; version?: number };
+          const cur = gameRef.current;
+          if (nudge.kind === "game" && cur && typeof nudge.version === "number" && nudge.version <= cur.version) return;
+          scheduleRefresh(0);
+        })
+        // Slower but authoritative change feed, kept as a fallback.
         .on("postgres_changes", { event: "*", schema: "public", table: "game_rooms", filter: `id=eq.${roomId}` }, () =>
           scheduleRefresh(),
         )

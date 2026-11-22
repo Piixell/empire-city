@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ApiError } from "@/lib/server/errors";
 import { applyGameCommand } from "@/lib/server/game-service";
 import { handler, readBody } from "@/lib/server/http";
+import { nudgeRoom } from "@/lib/server/realtime";
 import { commandEnvelopeSchema } from "@/lib/server/validation";
 import type { Command } from "@/lib/game/types";
 
@@ -24,5 +25,6 @@ export const POST = handler<{ gameId: string }>(async ({ db, userId, req }, { ga
       { status: result.error.status },
     );
   }
+  if (!result.duplicate) nudgeRoom(result.state?.roomId, { kind: "game", version: result.version });
   return { ok: true, duplicate: !!result.duplicate, version: result.version, state: result.state, events: result.events };
 });
