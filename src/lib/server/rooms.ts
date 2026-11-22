@@ -180,10 +180,24 @@ async function touchRoom(q: Queryer, roomId: string) {
 // ------------------------------ snapshot -----------------------------------
 
 export async function getRoomSnapshot(q: Queryer, code: string, userId: string): Promise<RoomSnapshot | RoomPreview> {
-  const rooms = await q.query(`select * from public.game_rooms where code = $1`, [code]);
+  // Round trip 1: room + server clock + current game state.
+  const rooms = await q.query(
+    `select r.*, (extract(epoch from clock_timestamp()) * 1000)::float8 as now_ms,
+            (select gs.public_state from public.game_sessions gs where gs.id = r.current_game_id) as game_state
+       from public.game_rooms r where r.code = $1`,
+    [code],
+  );
   const r = rooms[0];
   if (!r || r.status === "closed") throw notFound("Nessuna stanza con questo codice.");
-  const players = await activePlayers(q, r.id);
+  // Round trip 2: players and chat in parallel.
+  const [players, chat] = await Promise.all([
+    activePlayers(q, r.id),
+    q.query(
+      `select id::text as id, user_id, display_name, color, body, created_at from public.chat_messages
+        where room_id = $1::uuid order by created_at desc, id desc limit 60`,
+      [r.id],
+    ),
+  ]);
   const meRow = players.find((p) => p.user_id === userId);
   if (!meRow) {
     const known = await q.query(`select status from public.room_players where room_id = $1::uuid and user_id = $2::uuid`, [r.id, userId]);
@@ -208,17 +222,7 @@ export async function getRoomSnapshot(q: Queryer, code: string, userId: string):
       reason,
     };
   }
-  const chat = await q.query(
-    `select id::text as id, user_id, display_name, color, body, created_at from public.chat_messages
-      where room_id = $1::uuid order by created_at desc, id desc limit 60`,
-    [r.id],
-  );
-  let game: PublicGameState | null = null;
-  if (r.current_game_id) {
-    const g = await q.query(`select public_state from public.game_sessions where id = $1::uuid`, [r.current_game_id]);
-    game = (g[0]?.public_state as PublicGameState) ?? null;
-  }
-  const now = await q.query(`select (extract(epoch from clock_timestamp()) * 1000)::float8 as now_ms`);
+  const game = (r.game_state as PublicGameState | null) ?? null;
   const view = roomView(r);
   return {
     member: true,
@@ -227,7 +231,7 @@ export async function getRoomSnapshot(q: Queryer, code: string, userId: string):
     me: playerView(meRow, r.host_user_id),
     chat: chat.reverse().map(chatView),
     game,
-    serverTime: Number(now[0].now_ms),
+    serverTime: Number(r.now_ms),
   };
 }
 

@@ -31,11 +31,16 @@ export async function requireUser(req: Request): Promise<{ userId: string }> {
     const now = Date.now();
     const hit = cache.get(token);
     if (hit && hit.exp > now) return { userId: hit.userId };
-    const { data, error } = await supabase().auth.getUser(token);
-    if (error || !data.user) throw new ApiError(401, "UNAUTHENTICATED", "Sessione non valida o scaduta.");
-    cache.set(token, { userId: data.user.id, exp: now + 60_000 });
+    // getClaims verifies asymmetric JWTs locally against the cached JWKS (no
+    // network round trip per request); for legacy HS256 projects it falls back
+    // to asking Supabase Auth.
+    const { data, error } = await supabase().auth.getClaims(token);
+    const sub = data?.claims?.sub;
+    if (error || !sub) throw new ApiError(401, "UNAUTHENTICATED", "Sessione non valida o scaduta.");
+    const exp = typeof data.claims.exp === "number" ? data.claims.exp * 1000 : now + 60_000;
+    cache.set(token, { userId: sub, exp: Math.min(exp, now + 5 * 60_000) });
     if (cache.size > 5000) cache.clear();
-    return { userId: data.user.id };
+    return { userId: sub };
   }
 
   if (localModeAllowed() && token.startsWith("dev:")) {

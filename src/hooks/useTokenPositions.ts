@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { BOARD_SIZE, type GameEvent, type PublicGameState } from "@/lib/game/types";
 
-const STEP_MS = 150;
-const JUMP_MS = 420;
+const STEP_MS = 105;
+const JUMP_MS = 320;
 
 type Step = { pos: number; ms: number };
 

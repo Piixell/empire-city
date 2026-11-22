@@ -44,70 +44,97 @@ interface EngineBlob {
   debts: GameState["debts"];
   lastCard: GameState["lastCard"];
   eventSeq: number;
-  log: GameEvent[];
+  /** Legacy rows only: the log now lives once, in public_state.log. */
+  log?: GameEvent[];
 }
 
 // ------------------------------- loading -----------------------------------
+// Latency matters: Vercel ⇄ Postgres round trips dominate command time, so
+// independent statements are issued together (postgres.js pipelines them on
+// the transaction's connection) instead of awaiting each one in turn.
 
-export async function lockGame(q: Queryer, gameId: string): Promise<{ row: Row; nowMs: number } | null> {
+/**
+ * Locks the game row and, in the same round trip, reports whether `userId`
+ * is an active room member and whether `commandId` was already processed.
+ */
+export async function lockGame(
+  q: Queryer,
+  gameId: string,
+  opts: { userId?: string; commandId?: string } = {},
+): Promise<{ row: Row; nowMs: number; isMember: boolean; duplicate: { ok: boolean; result: unknown } | null } | null> {
   const rows = await q.query(
-    `select id, room_id, status, settings, version, turn_number, current_player_id, phase, dice, doubles_count,
-            ${ms("turn_deadline")} as turn_deadline_ms, engine,
-            ${ms("started_at")} as started_ms, ${ms("ends_at")} as ends_ms, ${ms("finished_at")} as finished_ms,
-            winner_player_id, finish_reason,
-            ${ms("clock_timestamp()")} as now_ms
-       from public.game_sessions where id = $1::uuid for update`,
-    [gameId],
+    `select gs.id, gs.room_id, gs.status, gs.settings, gs.version, gs.turn_number, gs.current_player_id, gs.phase, gs.dice,
+            gs.doubles_count, ${ms("gs.turn_deadline")} as turn_deadline_ms, gs.engine, gs.public_state -> 'log' as public_log,
+            ${ms("gs.started_at")} as started_ms, ${ms("gs.ends_at")} as ends_ms, ${ms("gs.finished_at")} as finished_ms,
+            gs.winner_player_id, gs.finish_reason,
+            ${ms("clock_timestamp()")} as now_ms,
+            exists (select 1 from public.room_players rp
+                     where rp.room_id = gs.room_id and rp.user_id = $2::uuid and rp.status = 'active') as is_member,
+            (select jsonb_build_object('ok', ga.ok, 'result', ga.result) from public.game_actions ga
+              where ga.game_id = gs.id and ga.command_id = $3::uuid) as duplicate
+       from public.game_sessions gs where gs.id = $1::uuid for update of gs`,
+    [gameId, opts.userId ?? null, opts.commandId ?? null],
   );
-  if (!rows[0]) return null;
-  return { row: rows[0], nowMs: Number(rows[0].now_ms) };
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    row,
+    nowMs: Number(row.now_ms),
+    isMember: !!row.is_member,
+    duplicate: (row.duplicate as { ok: boolean; result: unknown } | null) ?? null,
+  };
 }
 
 export async function loadGameState(q: Queryer, session: Row): Promise<GameState> {
   const gameId = session.id as string;
   const engine = session.engine as EngineBlob;
 
-  const players = await q.query(
-    `select id, user_id, room_player_id, seat, display_name, color, token, avatar, balance, position, in_jail,
-            jail_turns, jail_cards, status, eliminated_order, stats
-       from public.game_players where game_id = $1::uuid order by seat`,
-    [gameId],
-  );
-  const own = await q.query(
-    `select tile_idx, owner_player_id, houses, mortgaged from public.property_ownership where game_id = $1::uuid`,
-    [gameId],
-  );
-  const decks = await q.query(`select deck, card_order, next_index from public.game_decks where game_id = $1::uuid`, [gameId]);
-  const auctions = await q.query(
-    `select id, tile_idx, high_bid, high_bidder_id, passed_player_ids, ${ms("deadline")} as deadline_ms, ${ms("started_at")} as started_ms
-       from public.game_auctions where game_id = $1::uuid and status = 'open' limit 1`,
-    [gameId],
-  );
+  const [players, own, decks, auctions, trades] = await Promise.all([
+    q.query(
+      `select id, user_id, room_player_id, seat, display_name, color, token, avatar, balance, position, in_jail,
+              jail_turns, jail_cards, status, eliminated_order, stats
+         from public.game_players where game_id = $1::uuid order by seat`,
+      [gameId],
+    ),
+    q.query(`select tile_idx, owner_player_id, houses, mortgaged from public.property_ownership where game_id = $1::uuid`, [
+      gameId,
+    ]),
+    q.query(`select deck, card_order, next_index from public.game_decks where game_id = $1::uuid`, [gameId]),
+    q.query(
+      `select a.id, a.tile_idx, a.high_bid, a.high_bidder_id, a.passed_player_ids,
+              ${ms("a.deadline")} as deadline_ms, ${ms("a.started_at")} as started_ms,
+              coalesce((select jsonb_agg(jsonb_build_object('playerId', b.player_id, 'amount', b.amount,
+                                         'at', ${ms("b.created_at")}) order by b.amount)
+                          from public.auction_bids b where b.auction_id = a.id), '[]'::jsonb) as bids
+         from public.game_auctions a where a.game_id = $1::uuid and a.status = 'open' limit 1`,
+      [gameId],
+    ),
+    q.query(
+      `select id, from_player_id, to_player_id, offer_tiles, request_tiles, offer_cash, request_cash, offer_cards,
+              request_cards, status, parent_id, note, ${ms("created_at")} as created_ms, ${ms("resolved_at")} as resolved_ms
+         from public.trade_offers where game_id = $1::uuid
+        order by (status = 'pending') desc, created_at desc limit 40`,
+      [gameId],
+    ),
+  ]);
   let auction: AuctionState | null = null;
   if (auctions[0]) {
     const a = auctions[0];
-    const bids = await q.query(
-      `select player_id, amount, ${ms("created_at")} as at_ms from public.auction_bids where auction_id = $1::uuid order by amount`,
-      [a.id],
-    );
     auction = {
       id: a.id,
       tile: a.tile_idx,
       highBid: a.high_bid,
       highBidderId: a.high_bidder_id,
       passedIds: a.passed_player_ids ?? [],
-      bids: bids.map((b) => ({ playerId: b.player_id, amount: b.amount, at: Number(b.at_ms) })),
+      bids: ((a.bids ?? []) as { playerId: string; amount: number; at: number }[]).map((b) => ({
+        playerId: b.playerId,
+        amount: b.amount,
+        at: Number(b.at),
+      })),
       deadline: Number(a.deadline_ms),
       startedAt: Number(a.started_ms),
     };
   }
-  const trades = await q.query(
-    `select id, from_player_id, to_player_id, offer_tiles, request_tiles, offer_cash, request_cash, offer_cards,
-            request_cards, status, parent_id, note, ${ms("created_at")} as created_ms, ${ms("resolved_at")} as resolved_ms
-       from public.trade_offers where game_id = $1::uuid
-      order by (status = 'pending') desc, created_at desc limit 40`,
-    [gameId],
-  );
 
   const ownership: Record<number, OwnershipState> = {};
   for (const o of own) {
@@ -186,7 +213,7 @@ export async function loadGameState(q: Queryer, session: Row): Promise<GameState
     finishReason: session.finish_reason ?? null,
     version: session.version,
     eventSeq: engine.eventSeq ?? 0,
-    log: engine.log ?? [],
+    log: (session.public_log as GameEvent[] | null) ?? engine.log ?? [],
   };
 }
 
@@ -202,7 +229,6 @@ function engineBlob(s: GameState): EngineBlob {
     debts: s.debts,
     lastCard: s.lastCard,
     eventSeq: s.eventSeq,
-    log: s.log,
   };
 }
 
@@ -314,13 +340,18 @@ export async function insertNewGame(q: Queryer, s: GameState) {
   );
 }
 
-export async function saveGameState(q: Queryer, prev: GameState, next: GameState, events: GameEvent[]) {
+export async function saveGameState(q: Queryer, prev: GameState, next: GameState, events: GameEvent[]): Promise<void> {
   const gameId = next.id;
-  await writeSession(q, next, false);
+  // Every statement below is issued immediately (no await in between), so
+  // postgres.js pipelines them on the transaction's connection in this order:
+  // FK order is preserved and the whole save costs ~one network round trip.
+  const ops: Promise<unknown>[] = [];
+  const run = (text: string, params: unknown[]) => ops.push(q.query(text, params));
+  ops.push(writeSession(q, next, false));
 
   const changedPlayers = next.players.filter((p) => changed(p, prev.players.find((x) => x.id === p.id)));
   if (changedPlayers.length) {
-    await q.query(
+    run(
       `update public.game_players gp set balance = x.balance, position = x.position, in_jail = x.in_jail,
           jail_turns = x.jail_turns, jail_cards = x.jail_cards, status = x.status, eliminated_order = x.eliminated_order,
           stats = x.stats, updated_at = now()
@@ -332,7 +363,7 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
 
   const changedOwn = Object.values(next.ownership).filter((o) => changed(o, prev.ownership[o.tile]));
   if (changedOwn.length) {
-    await q.query(
+    run(
       `update public.property_ownership po set owner_player_id = x.owner, houses = x.houses, mortgaged = x.mortgaged, updated_at = now()
          from jsonb_to_recordset($1::jsonb) as x(tile int, owner uuid, houses int, mortgaged boolean)
         where po.game_id = $2::uuid and po.tile_idx = x.tile`,
@@ -342,7 +373,7 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
 
   for (const kind of ["chance", "community"] as const) {
     if (changed(prev.decks[kind], next.decks[kind])) {
-      await q.query(`update public.game_decks set card_order = $3::jsonb, next_index = $4::int where game_id = $1::uuid and deck = $2`, [
+      run(`update public.game_decks set card_order = $3::jsonb, next_index = $4::int where game_id = $1::uuid and deck = $2`, [
         gameId,
         kind,
         JSON.stringify(next.decks[kind].order),
@@ -354,7 +385,7 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
   // Auctions: upsert the open one, record bids, close finished ones.
   if (next.auction && changed(prev.auction, next.auction)) {
     const a = next.auction;
-    await q.query(
+    run(
       `insert into public.game_auctions (id, game_id, tile_idx, status, high_bid, high_bidder_id, passed_player_ids, deadline, started_at)
        values ($1::uuid, $2::uuid, $3::int, 'open', $4::int, $5::uuid, $6::jsonb, ${ts(7)}, ${ts(8)})
        on conflict (id) do update set high_bid = excluded.high_bid, high_bidder_id = excluded.high_bidder_id,
@@ -365,13 +396,13 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
   for (const e of events) {
     const d = (e.data ?? {}) as Record<string, unknown>;
     if (e.type === "bid") {
-      await q.query(
+      run(
         `insert into public.auction_bids (auction_id, player_id, amount, created_at) values ($1::uuid, $2::uuid, $3::int, ${ts(4)})
          on conflict (auction_id, amount) do nothing`,
         [d.auctionId, e.playerId, d.amount, e.at],
       );
     } else if (e.type === "auctionWon" || e.type === "auctionNoBids") {
-      await q.query(
+      run(
         `update public.game_auctions set status = 'closed', closed_at = ${ts(2)}, winner_player_id = $3::uuid, final_price = $4::int
           where id = $1::uuid`,
         [d.auctionId, e.at, e.type === "auctionWon" ? e.playerId : null, e.type === "auctionWon" ? d.amount : null],
@@ -382,7 +413,7 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
   // Trades
   const changedTrades = next.trades.filter((t) => changed(t, prev.trades.find((x) => x.id === t.id)));
   if (changedTrades.length) {
-    await q.query(
+    run(
       `insert into public.trade_offers (id, game_id, from_player_id, to_player_id, offer_tiles, request_tiles, offer_cash,
           request_cash, offer_cards, request_cards, status, parent_id, note, created_at, resolved_at)
        select x.id, $2::uuid, x.from_id, x.to_id, x.offer_tiles, x.request_tiles, x.offer_cash, x.request_cash, x.offer_cards,
@@ -416,18 +447,18 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
     );
   }
 
-  await insertEvents(q, gameId, events);
+  ops.push(insertEvents(q, gameId, events));
 
   // Turn history
   for (const e of events) {
     if (e.type === "turn") {
       const n = Number((e.data as { turn: number }).turn);
-      await q.query(`update public.game_turns set ended_at = ${ts(3)} where game_id = $1::uuid and turn_number = $2::int`, [
+      run(`update public.game_turns set ended_at = ${ts(3)} where game_id = $1::uuid and turn_number = $2::int`, [
         gameId,
         n - 1,
         e.at,
       ]);
-      await q.query(
+      run(
         `insert into public.game_turns (game_id, turn_number, player_id, started_at) values ($1::uuid, $2::int, $3::uuid, ${ts(4)})
          on conflict (game_id, turn_number) do nothing`,
         [gameId, n, e.playerId, e.at],
@@ -435,12 +466,13 @@ export async function saveGameState(q: Queryer, prev: GameState, next: GameState
     }
   }
   if (next.status === "finished" && prev.status !== "finished") {
-    await q.query(
+    run(
       `update public.game_turns set ended_at = ${ts(3)} where game_id = $1::uuid and turn_number = $2::int and ended_at is null`,
       [gameId, next.turn.number, next.finishedAt],
     );
-    await q.query(`update public.game_rooms set status = 'finished', updated_at = now() where id = $1::uuid`, [next.roomId]);
+    run(`update public.game_rooms set status = 'finished', updated_at = now() where id = $1::uuid`, [next.roomId]);
   }
+  await Promise.all(ops);
 }
 
 // ------------------------------- commands ----------------------------------
@@ -459,25 +491,17 @@ export async function applyGameCommand(
   input: { gameId: string; userId: string; commandId: string; command: Command; rng?: Rng; now?: number },
 ): Promise<CommandResult> {
   return db.tx(async (q) => {
-    const locked = await lockGame(q, input.gameId);
+    // One round trip: row lock + membership + idempotency check.
+    const locked = await lockGame(q, input.gameId, { userId: input.userId, commandId: input.commandId });
     if (!locked) throw notFound("Partita non trovata.");
     const { row, nowMs } = locked;
+    if (!locked.isMember) throw forbidden("Non fai parte di questa stanza.");
 
-    const member = await q.query(
-      `select 1 from public.room_players where room_id = $1::uuid and user_id = $2::uuid and status = 'active'`,
-      [row.room_id, input.userId],
-    );
-    if (!member[0]) throw forbidden("Non fai parte di questa stanza.");
-
-    const dup = await q.query(`select ok, result from public.game_actions where game_id = $1::uuid and command_id = $2::uuid`, [
-      input.gameId,
-      input.commandId,
-    ]);
-    if (dup[0]) {
-      const prevResult = (dup[0].result ?? {}) as Partial<CommandResult>;
+    if (locked.duplicate) {
+      const prevResult = (locked.duplicate.result ?? {}) as Partial<CommandResult>;
       const snap = await q.query(`select public_state, version from public.game_sessions where id = $1::uuid`, [input.gameId]);
       return {
-        ok: dup[0].ok,
+        ok: locked.duplicate.ok,
         duplicate: true,
         version: snap[0].version,
         state: { ...(snap[0].public_state as PublicGameState), serverTime: nowMs },
@@ -506,20 +530,24 @@ export async function applyGameCommand(
       return { ok: false, version: state.version, error, state: { ...toPublicState(state), serverTime: nowMs } };
     }
 
-    await saveGameState(q, state, next, events);
-    await q.query(
-      `insert into public.game_actions (game_id, command_id, user_id, command_type, command, ok, result, version_after)
-       values ($1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, true, $6::jsonb, $7::int)`,
-      [
-        input.gameId,
-        input.commandId,
-        input.userId,
-        input.command.type,
-        JSON.stringify(input.command),
-        JSON.stringify({ version: next.version }),
-        next.version,
-      ],
-    );
+    // Save + action record are pipelined together (saveGameState issues all its
+    // statements synchronously before this insert is issued).
+    await Promise.all([
+      saveGameState(q, state, next, events),
+      q.query(
+        `insert into public.game_actions (game_id, command_id, user_id, command_type, command, ok, result, version_after)
+         values ($1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, true, $6::jsonb, $7::int)`,
+        [
+          input.gameId,
+          input.commandId,
+          input.userId,
+          input.command.type,
+          JSON.stringify(input.command),
+          JSON.stringify({ version: next.version }),
+          next.version,
+        ],
+      ),
+    ]);
     return { ok: true, version: next.version, state: { ...toPublicState(next), serverTime: nowMs }, events };
   });
 }

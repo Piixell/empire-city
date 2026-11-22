@@ -32,7 +32,7 @@ export function BuyDialog() {
       return;
     }
     // let the token finish walking before showing the purchase window
-    const id = setTimeout(() => setOpen(true), 1300);
+    const id = setTimeout(() => setOpen(true), 800);
     return () => clearTimeout(id);
   }, [shouldOpen, pending]);
   if (!shouldOpen || pending == null || !me) return null;

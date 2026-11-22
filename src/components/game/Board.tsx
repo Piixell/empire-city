@@ -181,7 +181,7 @@ function TokensLayer() {
             style={{ width: `${TOKEN_PCT}%`, height: `${TOKEN_PCT}%`, translateX: "-50%", translateY: "-50%", zIndex: active ? 30 : 20 }}
             initial={false}
             animate={{ left: `${c.x + off.dx}%`, top: `${c.y + off.dy}%` }}
-            transition={{ type: "tween", duration: 0.14, ease: "easeOut" }}
+            transition={{ type: "tween", duration: 0.1, ease: "easeOut" }}
           >
             <motion.div
               key={`${pos}`}
