@@ -23,9 +23,29 @@ export interface Database extends Queryer {
 
 // ------------------------------- postgres.js -------------------------------
 
-export async function createPostgresDatabase(url: string): Promise<Database> {
+/** DATABASE_URL, or POSTGRES_URL as injected by the Vercel ⇄ Supabase integration. */
+export function databaseUrl(): string {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+}
+
+/**
+ * Keeps only parameters postgres.js understands: integration URLs carry extra
+ * query params (e.g. `supa=base-pooler.x`) that would be sent to the server as
+ * unknown startup parameters.
+ */
+export function normalizeDatabaseUrl(raw: string): { url: string; ssl: "require" | false } {
+  const u = new URL(raw);
+  const sslmode = u.searchParams.get("sslmode");
+  u.search = "";
+  const isLocal = ["localhost", "127.0.0.1", "::1"].includes(u.hostname);
+  return { url: u.toString(), ssl: sslmode === "disable" || (isLocal && !sslmode) ? false : "require" };
+}
+
+export async function createPostgresDatabase(rawUrl: string): Promise<Database> {
   const { default: postgres } = await import("postgres");
+  const { url, ssl } = normalizeDatabaseUrl(rawUrl);
   const sql = postgres(url, {
+    ssl,
     prepare: false, // required by Supabase's transaction pooler (pgbouncer)
     max: 5,
     idle_timeout: 20,
@@ -108,7 +128,7 @@ const g = globalThis as unknown as { __empireDb?: Promise<Database> };
 
 export function getDb(): Promise<Database> {
   if (!g.__empireDb) {
-    const url = process.env.DATABASE_URL;
+    const url = databaseUrl();
     if (url) {
       g.__empireDb = createPostgresDatabase(url);
     } else if (process.env.NODE_ENV !== "production" || process.env.EMPIRE_ALLOW_LOCAL === "1") {

@@ -123,6 +123,8 @@ Per sviluppare in locale contro Supabase, copia `.env.example` in `.env.local` e
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `DATABASE_URL` (transaction pooler, porta 6543)
+
+   In alternativa usa l'integrazione **Supabase del Vercel Marketplace** (*Storage → Create Database → Supabase*): crea il progetto e inietta da sola `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `POSTGRES_URL`, che l'app usa al posto di `DATABASE_URL`. Restano da fare a mano le migrazioni SQL e l'abilitazione dell'accesso anonimo.
 3. In *Settings → Functions → Function Region* scegli la **stessa regione** del database Supabase (ogni comando esegue ~10 query in transazione: la latenza tra Vercel e il DB conta).
 4. Deploy. Aggiorna il *Site URL* di Supabase con il dominio finale.
 
