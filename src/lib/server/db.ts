@@ -92,17 +92,6 @@ export function castJsonParamsAsText(sql: string): string {
 export async function createPostgresDatabase(rawUrl: string): Promise<Database> {
   const { default: postgres } = await import("postgres");
   const conn = parseDatabaseUrl(rawUrl);
-  // Safe diagnostics (never the password itself) to debug misconfigured env vars.
-  console.info("[db] connecting", {
-    host: conn.host,
-    port: conn.port,
-    user: conn.user,
-    database: conn.database,
-    passwordSet: conn.password.length > 0,
-    passwordLooksLikePlaceholder: /YOUR[-_ ]?PASSWORD/i.test(conn.password),
-    passwordWrappedInBrackets: /^\[.*\]$/.test(conn.password),
-    passwordHasSurroundingSpaces: conn.password !== conn.password.trim(),
-  });
   const sql = postgres({
     host: conn.host,
     port: conn.port,
