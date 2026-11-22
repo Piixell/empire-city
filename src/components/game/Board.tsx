@@ -308,19 +308,19 @@ function BoardCenter({ size }: { size: number }) {
         ))}
       </div>
 
-      <div className="pointer-events-none absolute bottom-[3cqmin] left-[3cqmin] rotate-[-8deg] rounded-[1cqmin] border-[0.3cqmin] border-[#c98a17] bg-[#fff4d6] px-[1.4cqmin] py-[1cqmin] text-center shadow-md">
-        <div className="font-display font-extrabold text-[#a8650a]" style={{ fontSize: "1.5cqmin" }}>
+      <div className="pointer-events-none absolute bottom-[3cqmin] left-[3cqmin] rotate-[-8deg] rounded-[1cqmin] border-[0.3cqmin] border-[#7c3aed] bg-[#f1e9ff] px-[1.4cqmin] py-[1cqmin] text-center shadow-md">
+        <div className="font-display font-extrabold text-[#5b21b6]" style={{ fontSize: "1.5cqmin" }}>
           {DECK_NAMES.chance}
         </div>
-        <div className="text-[#a8650a]/80" style={{ fontSize: "1.1cqmin" }}>
+        <div className="text-[#5b21b6]/80" style={{ fontSize: "1.1cqmin" }}>
           {game.decks.chance.remaining} carte
         </div>
       </div>
-      <div className="pointer-events-none absolute right-[3cqmin] top-[3cqmin] rotate-[8deg] rounded-[1cqmin] border-[0.3cqmin] border-[#0f8f84] bg-[#ddf6f4] px-[1.4cqmin] py-[1cqmin] text-center shadow-md">
-        <div className="font-display font-extrabold text-[#0b6e66]" style={{ fontSize: "1.5cqmin" }}>
+      <div className="pointer-events-none absolute right-[3cqmin] top-[3cqmin] rotate-[8deg] rounded-[1cqmin] border-[0.3cqmin] border-[#c98a17] bg-[#fff4d6] px-[1.4cqmin] py-[1cqmin] text-center shadow-md">
+        <div className="font-display font-extrabold text-[#a8650a]" style={{ fontSize: "1.5cqmin" }}>
           {DECK_NAMES.community}
         </div>
-        <div className="text-[#0b6e66]/80" style={{ fontSize: "1.1cqmin" }}>
+        <div className="text-[#a8650a]/80" style={{ fontSize: "1.1cqmin" }}>
           {game.decks.community.remaining} carte
         </div>
       </div>

@@ -16,6 +16,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
   const district = t.district ? DISTRICTS[t.district] : null;
   const Icon = t.icon ? TILE_ICONS[t.icon] : undefined;
   const currentRent = own?.ownerId ? computeRent(game, index, { diceTotal: 7 }) : 0;
+  const DistrictIcon = district ? TILE_ICONS[district.icon] : undefined;
 
   const header = (
     <div
@@ -23,10 +24,10 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
       style={{ background: district ? district.color : t.kind === "transport" ? "#334155" : t.kind === "utility" ? "#0f766e" : "#1e293b" }}
     >
       <div className="text-[10px] font-bold uppercase tracking-widest text-white/80">
-        {district ? district.name : t.kind === "transport" ? "Trasporti" : t.kind === "utility" ? "Servizi pubblici" : "Casella speciale"}
+        {district ? district.name : t.kind === "transport" ? "Portali e trasporti" : t.kind === "utility" ? "Fonti arcane" : "Casella speciale"}
       </div>
       <div className="flex items-center justify-center gap-2 font-display text-lg font-extrabold text-white drop-shadow">
-        {Icon && !district && <Icon className="size-5" />}
+        {district ? DistrictIcon && <DistrictIcon className="size-5" /> : Icon && <Icon className="size-5" />}
         {t.name}
       </div>
     </div>
@@ -55,12 +56,12 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
   if (t.kind === "property" && t.rent) {
     const rows: [string, number][] = [
       ["Affitto base", t.rent[0]],
-      ["Con quartiere completo", t.rent[0] * 2],
-      ["Con 1 casa", t.rent[1]],
-      ["Con 2 case", t.rent[2]],
-      ["Con 3 case", t.rent[3]],
-      ["Con 4 case", t.rent[4]],
-      ["Con torre", t.rent[5]],
+      ["Con regione completa", t.rent[0] * 2],
+      ["Con 1 torretta", t.rent[1]],
+      ["Con 2 torrette", t.rent[2]],
+      ["Con 3 torrette", t.rent[3]],
+      ["Con 4 torrette", t.rent[4]],
+      ["Con fortezza", t.rent[5]],
     ];
     body = (
       <>
@@ -79,7 +80,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
         </table>
         {!compact && (
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 border-t border-black/10 pt-2 text-xs">
-            <span className="text-[#2b2417]/70">Costo edificio</span>
+            <span className="text-[#2b2417]/70">Costo torretta/fortezza</span>
             <span className="text-right font-semibold">{cr(t.houseCost!)} cr</span>
             <span className="text-[#2b2417]/70">Valore ipoteca</span>
             <span className="text-right font-semibold">{cr(t.mortgage!)} cr</span>
@@ -95,7 +96,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
         <tbody>
           {TRANSPORT_RENT.map((v, i) => (
             <tr key={i}>
-              <td className="py-0.5 text-[#2b2417]/80">{i + 1} trasport{i ? "i" : "o"} posseduti</td>
+              <td className="py-0.5 text-[#2b2417]/80">{i + 1} trasport{i ? "i" : "o"} posseduti (pedaggio)</td>
               <td className="py-0.5 text-right font-semibold">{cr(v)} cr</td>
             </tr>
           ))}
@@ -108,7 +109,7 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
         {UTILITY_MULTIPLIERS.map((m, i) => (
           <div key={i} className="flex justify-between">
             <span>
-              {i + 1} serviz{i ? "i" : "io"} posseduti
+              {i + 1} font{i ? "i" : "e"} arcan{i ? "e" : "a"} possedut{i ? "e" : "a"}
             </span>
             <span className="font-semibold">{m}× il lancio dei dadi</span>
           </div>
@@ -117,13 +118,13 @@ export function PropertyCard({ index, game, compact }: { index: number; game: Pu
     );
   } else {
     const text: Record<string, string> = {
-      go: `Ogni volta che passi o ti fermi qui ricevi ${game.settings.goBonus} crediti.`,
-      jail: "Se sei solo in transito non succede nulla. In prigione puoi pagare 60 cr, usare una carta o tentare il doppio (max 3 tentativi).",
-      parking: "Una pausa gratuita: qui non succede nulla.",
-      goToJail: "Vai direttamente in prigione senza passare dalla Partenza.",
-      chance: "Pesca una carta Evento Urbano.",
-      community: "Pesca una carta Fondo Cittadino.",
-      tax: `Paga ${t.taxAmount} crediti alla Banca.`,
+      go: `Le acque della fontana ti rigenerano: ogni volta che passi o ti fermi qui ricevi ${game.settings.goBonus} crediti.`,
+      jail: "Se sei solo in visita non succede nulla. Nelle Segrete puoi pagare 60 cr di cauzione, usare una pergamena d'evasione o tentare il doppio (max 3 tentativi).",
+      parking: "Un accampamento sicuro per riposare: qui non succede nulla.",
+      goToJail: "Le guardie reali ti catturano: vai direttamente nelle Segrete del Re senza passare dalla Fontana della Rinascita.",
+      chance: "Pesca una carta Destino Arcano.",
+      community: "Pesca una carta Tesoro della Gilda.",
+      tax: `Versa ${t.taxAmount} crediti alla Banca.`,
     };
     body = <p className="text-sm text-[#2b2417]/85">{text[t.kind]}</p>;
   }

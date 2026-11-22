@@ -21,20 +21,21 @@ export type TileKind =
   | "tax";
 
 export type DistrictKey =
-  | "borgo"
-  | "industriale"
-  | "riverside"
-  | "green"
-  | "centro"
-  | "commerciale"
-  | "skyline"
-  | "golden";
+  | "bassofondo"
+  | "approdo"
+  | "sahrem"
+  | "frontiera"
+  | "kaori"
+  | "ferro"
+  | "aurelia"
+  | "argentea";
 
 export interface District {
   key: DistrictKey;
   name: string;
   color: string; // hex
   houseCost: number;
+  icon: string; // emblem shown on the tiles
 }
 
 export interface TileDef {
@@ -44,7 +45,7 @@ export interface TileDef {
   short?: string;
   district?: DistrictKey;
   price?: number;
-  /** property: [base, 1 casa, 2 case, 3 case, 4 case, torre]; transport: by count owned */
+  /** property: [base, 1–4 torrette, fortezza]; transport: by count owned */
   rent?: number[];
   houseCost?: number;
   mortgage?: number;
@@ -129,7 +130,7 @@ export interface PlayerState {
   position: number;
   inJail: boolean;
   jailTurns: number;
-  jailCards: string[]; // card ids of held "esci di prigione" cards
+  jailCards: string[]; // card ids of held "evasione dalle Segrete" cards
   status: "active" | "bankrupt";
   eliminatedOrder: number | null;
   stats: PlayerStats;
@@ -138,7 +139,7 @@ export interface PlayerState {
 export interface OwnershipState {
   tile: number;
   ownerId: string | null;
-  houses: number; // 0..5 (5 = torre)
+  houses: number; // 0..4 torrette, 5 = fortezza
   mortgaged: boolean;
 }
 

@@ -414,7 +414,7 @@ function SettingsCard({
         <Row label="Capitale iniziale">
           <Select value={s.startingCash} options={[1000, 1500, 2000, 2500, 3000, 5000]} onChange={(n) => set({ startingCash: n })} suffix=" cr" />
         </Row>
-        <Row label="Bonus Partenza">
+        <Row label="Bonus Fontana della Rinascita">
           <Select value={s.goBonus} options={[100, 150, 200, 250, 300, 400]} onChange={(n) => set({ goBonus: n })} suffix=" cr" />
         </Row>
         <Row label="Durata turno">

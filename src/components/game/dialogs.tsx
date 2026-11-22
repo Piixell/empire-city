@@ -186,7 +186,7 @@ export function JailDialog() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lock className="size-5" /> Sei in prigione
+            <Lock className="size-5" /> Sei nelle Segrete del Re
           </DialogTitle>
           <DialogDescription>Tentativo {me.jailTurns + 1} di 3. Al terzo tentativo fallito pagherai la cauzione automaticamente.</DialogDescription>
         </DialogHeader>
@@ -201,7 +201,7 @@ export function JailDialog() {
           </Hint>
           <Hint label={me.jailCards.length === 0 ? "Non possiedi carte di uscita" : undefined}>
             <Button className="w-full" variant="accent" disabled={!!busy || me.jailCards.length === 0} onClick={() => send({ type: "USE_JAIL_CARD" })}>
-              <Ticket /> Usa carta &quot;Esci gratis&quot; ({me.jailCards.length})
+              <Ticket /> Usa pergamena d&apos;evasione ({me.jailCards.length})
             </Button>
           </Hint>
         </div>
@@ -301,7 +301,7 @@ export function ManageDialog() {
             <Building2 className="size-5 text-primary" /> Gestisci proprietà
           </DialogTitle>
           <DialogDescription>
-            Saldo: <strong className="text-foreground">{cr(me.balance)} cr</strong>. Costruzione uniforme: costruisci e vendi bilanciando il quartiere.
+            Saldo: <strong className="text-foreground">{cr(me.balance)} cr</strong>. Costruzione uniforme: costruisci e vendi bilanciando la regione.
           </DialogDescription>
         </DialogHeader>
         {mine.length === 0 ? (
@@ -321,14 +321,14 @@ export function ManageDialog() {
                   <div className="min-w-40 flex-1">
                     <div className="font-semibold">{t.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {o.mortgaged ? "Ipotecata" : o.houses === 5 ? "Torre" : o.houses > 0 ? `${o.houses} case` : t.kind === "property" ? "Nessun edificio" : t.kind === "transport" ? "Trasporto" : "Servizio"}
+                      {o.mortgaged ? "Ipotecata" : o.houses === 5 ? "Fortezza" : o.houses > 0 ? `${o.houses} torrett${o.houses === 1 ? "a" : "e"}` : t.kind === "property" ? "Nessun edificio" : t.kind === "transport" ? "Trasporto" : "Fonte arcana"}
                     </div>
                   </div>
                   {t.kind === "property" && (
                     <>
                       <Hint label={build ?? undefined}>
                         <Button size="sm" variant="success" disabled={!!build || !!busy} onClick={() => send({ type: "BUILD", tile: o.tile })}>
-                          <Hammer /> {o.houses === 4 ? "Torre" : "Casa"} −{t.houseCost}
+                          <Hammer /> {o.houses === 4 ? "Fortezza" : "Torretta"} −{t.houseCost}
                         </Button>
                       </Hint>
                       <Hint label={sell ?? undefined}>
@@ -421,7 +421,7 @@ export function TradeDialog() {
           <DialogTitle className="flex items-center gap-2">
             <ArrowLeftRight className="size-5 text-primary" /> {counter ? "Controfferta" : "Proponi scambio"}
           </DialogTitle>
-          <DialogDescription>Le proprietà di quartieri con edifici non sono scambiabili. Le proprietà ipotecate passano con l&apos;ipoteca.</DialogDescription>
+          <DialogDescription>Le proprietà di regioni con torrette o fortezze non sono scambiabili. Le proprietà ipotecate passano con l&apos;ipoteca.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center gap-2">
           <Label>Destinatario</Label>
@@ -551,7 +551,7 @@ export function TradeSummary({ trade, game }: { trade: TradeOffer; game: PublicG
   const from = game.players.find((p) => p.id === trade.fromId);
   const to = game.players.find((p) => p.id === trade.toId);
   const items = (tiles: number[], cash: number, cards: string[]) => {
-    const parts = [...tiles.map((i) => tileAt(i).name), ...(cash ? [`${cr(cash)} cr`] : []), ...cards.map(() => "🎟️ carta prigione")];
+    const parts = [...tiles.map((i) => tileAt(i).name), ...(cash ? [`${cr(cash)} cr`] : []), ...cards.map(() => "📜 pergamena d'evasione")];
     return parts.length ? parts.join(", ") : "nulla";
   };
   return (
@@ -604,14 +604,14 @@ export function PortfolioDialog() {
                     >
                       <span className="h-6 w-1.5 rounded-full" style={{ background: color }} />
                       <span className="flex-1 truncate">{t.name}</span>
-                      {o.houses > 0 && <span className="text-xs text-green-400">{o.houses === 5 ? "🏢" : "🏠".repeat(o.houses)}</span>}
+                      {o.houses > 0 && <span className="text-xs text-green-400">{o.houses === 5 ? "🏰" : "🗼".repeat(o.houses)}</span>}
                       {o.mortgaged && <span className="text-[10px] font-bold text-amber-300">IPOTECA</span>}
                     </button>
                   );
                 })}
               {ownedTiles(game, p.id).length === 0 && <p className="col-span-2 py-6 text-center text-muted-foreground">Nessuna proprietà.</p>}
             </div>
-            {p.jailCards.length > 0 && <div className="text-sm text-sky-300">🎟️ Carte &quot;Esci di prigione&quot;: {p.jailCards.length}</div>}
+            {p.jailCards.length > 0 && <div className="text-sm text-sky-300">📜 Pergamene d&apos;evasione: {p.jailCards.length}</div>}
             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
               <span>Acquisti: {p.stats.propertiesBought}</span>
               <span>Edifici: {p.stats.buildingsBuilt}</span>
@@ -662,14 +662,14 @@ export function Spotlight({ item, onDone }: { item: SpotlightItem | null; onDone
               "relative w-full max-w-sm overflow-hidden rounded-2xl p-6 text-center shadow-2xl",
               item.kind === "card"
                 ? item.deck === "chance"
-                  ? "bg-gradient-to-b from-[#fff4d6] to-[#fde6a6] text-[#5a3a05]"
-                  : "bg-gradient-to-b from-[#ddf6f4] to-[#a9e4dc] text-[#063f3a]"
+                  ? "bg-gradient-to-b from-[#f1e9ff] to-[#cdb6fa] text-[#3b0f8c]"
+                  : "bg-gradient-to-b from-[#fff4d6] to-[#fde6a6] text-[#5a3a05]"
                 : "glass text-foreground",
             )}
             style={item.color ? { boxShadow: `0 0 0 3px ${item.color}, 0 30px 60px -20px rgba(0,0,0,0.7)` } : undefined}
           >
             <div className="text-xs font-bold uppercase tracking-[0.3em] opacity-70">
-              {item.kind === "card" ? (item.deck === "chance" ? "Evento Urbano" : "Fondo Cittadino") : item.kind === "rent" ? "Affitto" : item.kind === "jail" ? "Prigione" : item.kind === "bankrupt" ? "Bancarotta" : "Avviso"}
+              {item.kind === "card" ? (item.deck === "chance" ? "Destino Arcano" : "Tesoro della Gilda") : item.kind === "rent" ? "Affitto" : item.kind === "jail" ? "Segrete del Re" : item.kind === "bankrupt" ? "Bancarotta" : "Avviso"}
             </div>
             <div className="mt-2 font-display text-2xl font-extrabold">{item.title}</div>
             <p className="mt-3 text-sm leading-relaxed opacity-90">{item.text}</p>

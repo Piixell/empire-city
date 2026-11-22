@@ -112,14 +112,14 @@ export function ActionPanel() {
       {isMyTurn && phase === "ROLL" && me?.inJail && !game.turn.hasRolled && (
         <div className="rounded-xl border border-zinc-500/40 bg-zinc-500/10 p-3">
           <div className="flex items-center gap-2 text-sm font-semibold">
-            <Lock className="size-4" /> Sei in prigione (tentativo {me.jailTurns + 1}/3)
+            <Lock className="size-4" /> Sei nelle Segrete (tentativo {me.jailTurns + 1}/3)
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <Button size="sm" variant="secondary" disabled={!!busy || me.balance < JAIL_FINE} onClick={() => send({ type: "PAY_JAIL" })}>
               <Unlock /> Paga {JAIL_FINE}
             </Button>
             <Button size="sm" variant="accent" disabled={!!busy || me.jailCards.length === 0} onClick={() => send({ type: "USE_JAIL_CARD" })}>
-              <Ticket /> Usa carta
+              <Ticket /> Pergamena
             </Button>
           </div>
         </div>

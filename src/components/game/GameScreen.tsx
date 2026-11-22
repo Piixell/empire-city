@@ -95,7 +95,7 @@ function GameLayout() {
           break;
         }
         case "jail":
-          if (mine) pushSpot({ id: e.seq, kind: "jail", title: "In prigione!", text: e.message });
+          if (mine) pushSpot({ id: e.seq, kind: "jail", title: "Catturato!", text: e.message });
           else toast(e.message, { icon: "🚔" });
           break;
         case "bankrupt":

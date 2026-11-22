@@ -200,14 +200,14 @@ describe("auctions", () => {
 });
 
 describe("buildings and mortgages", () => {
-  function withBorgo() {
+  function withBassofondo() {
     const g = newGame(2);
-    for (const i of districtTiles("borgo")) g.ownership[i].ownerId = "p1";
+    for (const i of districtTiles("bassofondo")) g.ownership[i].ownerId = "p1";
     return g;
   }
 
   it("doubles base rent for a full district and enforces even building", () => {
-    const g = withBorgo();
+    const g = withBassofondo();
     expect(computeRent(g, 1, { diceTotal: 7 })).toBe(8);
     const h = new Harness(g, scriptedDiceRng([]));
     h.run("u1", { type: "BUILD", tile: 1 });
@@ -227,7 +227,7 @@ describe("buildings and mortgages", () => {
   });
 
   it("builds up to a tower (5) and not beyond", () => {
-    const g = withBorgo();
+    const g = withBassofondo();
     const h = new Harness(g, scriptedDiceRng([]));
     for (let r = 0; r < 5; r++) for (const t of [1, 3, 5]) h.run("u1", { type: "BUILD", tile: t });
     expect(h.s.ownership[5].houses).toBe(5);
@@ -339,7 +339,7 @@ describe("trades", () => {
 
   it("refuses trading properties of districts with buildings", () => {
     const g = newGame(2);
-    for (const i of districtTiles("borgo")) g.ownership[i].ownerId = "p1";
+    for (const i of districtTiles("bassofondo")) g.ownership[i].ownerId = "p1";
     g.ownership[1].houses = 1;
     const h = new Harness(g, seededRng(3));
     expectGameError(
@@ -362,7 +362,7 @@ describe("trades", () => {
 describe("debts, bankruptcy and victory", () => {
   it("forces raising funds, then bankruptcy transfers assets to the creditor and ends the game", () => {
     const g = newGame(2);
-    for (const i of districtTiles("golden")) g.ownership[i].ownerId = "p2";
+    for (const i of districtTiles("argentea")) g.ownership[i].ownerId = "p2";
     g.ownership[47].houses = 5;
     g.ownership[43].houses = 4;
     g.ownership[45].houses = 4;

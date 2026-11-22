@@ -68,7 +68,7 @@ export function PlayersPanel() {
               {active && <Tag className="bg-primary/20 text-primary">In turno</Tag>}
               {p.inJail && (
                 <Tag className="bg-zinc-500/25 text-zinc-200">
-                  <Lock className="size-3" /> Prigione
+                  <Lock className="size-3" /> Segrete
                 </Tag>
               )}
               {bankrupt && (
@@ -81,7 +81,7 @@ export function PlayersPanel() {
                   <WifiOff className="size-3" /> Disconnesso
                 </Tag>
               )}
-              {p.jailCards.length > 0 && <Tag className="bg-sky-500/15 text-sky-300">🎟️ {p.jailCards.length}</Tag>}
+              {p.jailCards.length > 0 && <Tag className="bg-sky-500/15 text-sky-300">📜 {p.jailCards.length}</Tag>}
             </div>
           </motion.button>
         );

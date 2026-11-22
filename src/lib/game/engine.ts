@@ -259,24 +259,24 @@ export function applyCommand(prev: GameState, actorUserId: string | null, cmd: C
     case "PAY_JAIL": {
       const p = requireCurrent(s, actor);
       requirePhase(s, "ROLL");
-      if (!p.inJail) throw new GameError("NOT_IN_JAIL", "Non sei in prigione.");
+      if (!p.inJail) throw new GameError("NOT_IN_JAIL", "Non sei nelle Segrete.");
       if (p.balance < JAIL_FINE) throw new GameError("INSUFFICIENT_FUNDS", `Servono ${formatCr(JAIL_FINE)} per pagare la cauzione.`);
       p.balance -= JAIL_FINE;
       p.inJail = false;
       p.jailTurns = 0;
-      c.emit("jailPaid", `${p.name} paga la cauzione di ${formatCr(JAIL_FINE)} ed esce di prigione.`, p.id, { amount: JAIL_FINE });
+      c.emit("jailPaid", `${p.name} paga la cauzione di ${formatCr(JAIL_FINE)} ed esce dalle Segrete.`, p.id, { amount: JAIL_FINE });
       break;
     }
     case "USE_JAIL_CARD": {
       const p = requireCurrent(s, actor);
       requirePhase(s, "ROLL");
-      if (!p.inJail) throw new GameError("NOT_IN_JAIL", "Non sei in prigione.");
+      if (!p.inJail) throw new GameError("NOT_IN_JAIL", "Non sei nelle Segrete.");
       const cardId = p.jailCards.shift();
       if (!cardId) throw new GameError("NO_CARD", "Non possiedi carte di uscita.");
       s.decks[getCard(cardId).deck].order.push(cardId);
       p.inJail = false;
       p.jailTurns = 0;
-      c.emit("jailCard", `${p.name} usa la carta "${getCard(cardId).title}" ed esce di prigione.`, p.id, { cardId });
+      c.emit("jailCard", `${p.name} usa la carta "${getCard(cardId).title}" ed esce dalle Segrete.`, p.id, { cardId });
       break;
     }
     case "BUILD": {
@@ -501,7 +501,7 @@ function moveSteps(c: Ctx, p: PlayerState, steps: number) {
   p.position = to;
   c.emit("move", `${p.name} si sposta su ${tileAt(to).name}.`, p.id, { from, to, steps, mode: "walk" });
   if (steps > 0 && from + steps >= BOARD_SIZE) {
-    credit(c, p, c.s.settings.goBonus, "passaggio dalla Partenza");
+    credit(c, p, c.s.settings.goBonus, "passaggio dalla Fontana della Rinascita");
   }
 }
 
@@ -520,7 +520,7 @@ function sendToJail(c: Ctx, p: PlayerState, reason: string) {
     c.s.turn.extraRoll = false;
     c.s.turn.doublesCount = 0;
   }
-  c.emit("jail", `${p.name} va in prigione: ${reason}.`, p.id, { from, to: JAIL_INDEX, mode: "jump" });
+  c.emit("jail", `${p.name} finisce nelle Segrete del Re: ${reason}.`, p.id, { from, to: JAIL_INDEX, mode: "jump" });
 }
 
 function doRoll(c: Ctx, p: PlayerState) {
@@ -541,11 +541,11 @@ function doRoll(c: Ctx, p: PlayerState) {
     if (doubles) {
       p.inJail = false;
       p.jailTurns = 0;
-      c.emit("jailRelease", `${p.name} fa un doppio ed esce di prigione!`, p.id);
+      c.emit("jailRelease", `${p.name} fa un doppio ed evade dalle Segrete!`, p.id);
     } else {
       p.jailTurns += 1;
       if (p.jailTurns < 3) {
-        c.emit("jailStay", `${p.name} resta in prigione (tentativo ${p.jailTurns}/3).`, p.id);
+        c.emit("jailStay", `${p.name} resta nelle Segrete (tentativo ${p.jailTurns}/3).`, p.id);
         return;
       }
       p.inJail = false;
@@ -580,10 +580,10 @@ function resolveLanding(c: Ctx, p: PlayerState, opts: RentOptions, depth: number
     case "parking":
       return;
     case "jail":
-      if (!p.inJail) c.emit("visit", `${p.name} è in visita alla prigione.`, p.id);
+      if (!p.inJail) c.emit("visit", `${p.name} fa visita alle Segrete del Re.`, p.id);
       return;
     case "goToJail":
-      sendToJail(c, p, "è finito sulla casella Vai in Prigione");
+      sendToJail(c, p, "è stato catturato dalle guardie reali");
       return;
     case "tax":
       charge(c, p, null, t.taxAmount ?? 0, t.name);
@@ -804,12 +804,12 @@ export function canBuildReason(s: GameState, p: PlayerState, tile: number): stri
   const o = s.ownership[tile];
   const t = tileAt(tile);
   if (o.ownerId !== p.id) return "Non possiedi questa proprietà.";
-  if (t.kind !== "property" || !t.district) return "Si può costruire solo sulle proprietà dei quartieri.";
-  if (!ownsDistrict(s, p.id, t.district)) return "Devi possedere l'intero quartiere.";
-  if (districtHasMortgage(s, t.district)) return "Il quartiere ha proprietà ipotecate.";
+  if (t.kind !== "property" || !t.district) return "Si può costruire solo sulle proprietà delle regioni.";
+  if (!ownsDistrict(s, p.id, t.district)) return "Devi possedere l'intera regione.";
+  if (districtHasMortgage(s, t.district)) return "La regione ha proprietà ipotecate.";
   if (o.houses >= MAX_BUILDINGS) return "Edificio massimo già costruito.";
   const minH = Math.min(...districtTiles(t.district).map((i) => s.ownership[i].houses));
-  if (o.houses > minH) return "Costruzione uniforme: costruisci prima sulle altre proprietà del quartiere.";
+  if (o.houses > minH) return "Costruzione uniforme: costruisci prima sulle altre proprietà della regione.";
   if (p.balance < (t.houseCost ?? 0)) return "Fondi insufficienti.";
   return null;
 }
@@ -830,7 +830,7 @@ export function canMortgageReason(s: GameState, p: PlayerState, tile: number): s
   const o = s.ownership[tile];
   if (o.ownerId !== p.id) return "Non possiedi questa proprietà.";
   if (o.mortgaged) return "Già ipotecata.";
-  if (!tileIsFreeOfBuildings(s, tile)) return "Vendi prima gli edifici del quartiere.";
+  if (!tileIsFreeOfBuildings(s, tile)) return "Vendi prima gli edifici della regione.";
   return null;
 }
 
@@ -846,7 +846,7 @@ function doBuild(c: Ctx, p: PlayerState, tile: number) {
   p.stats.buildingsBuilt += 1;
   c.emit(
     "build",
-    `${p.name} costruisce ${o.houses === MAX_BUILDINGS ? "una torre" : `la casa n.${o.houses}`} su ${t.name} (${formatCr(t.houseCost!)}).`,
+    `${p.name} costruisce ${o.houses === MAX_BUILDINGS ? "una fortezza" : `la torretta n.${o.houses}`} su ${t.name} (${formatCr(t.houseCost!)}).`,
     p.id,
     { tile, houses: o.houses },
   );
@@ -863,7 +863,7 @@ function doSellBuilding(c: Ctx, p: PlayerState, tile: number) {
   const wasTower = o.houses === MAX_BUILDINGS;
   o.houses -= 1;
   p.balance += refund;
-  c.emit("sellBuilding", `${p.name} vende ${wasTower ? "la torre" : "una casa"} su ${t.name} (+${formatCr(refund)}).`, p.id, {
+  c.emit("sellBuilding", `${p.name} vende ${wasTower ? "la fortezza" : "una torretta"} su ${t.name} (+${formatCr(refund)}).`, p.id, {
     tile,
     houses: o.houses,
   });
@@ -1017,7 +1017,7 @@ export function validateTrade(s: GameState, t: Omit<TradeOffer, "id" | "status" 
   if (allTiles.some((i) => !Number.isInteger(i) || !isOwnable(i))) return "Proprietà non valide.";
   if (t.offerTiles.some((i) => s.ownership[i].ownerId !== from.id)) return `${from.name} non possiede più tutte le proprietà offerte.`;
   if (t.requestTiles.some((i) => s.ownership[i].ownerId !== to.id)) return `${to.name} non possiede più tutte le proprietà richieste.`;
-  if (allTiles.some((i) => !tileIsFreeOfBuildings(s, i))) return "Non si possono scambiare proprietà di quartieri con edifici.";
+  if (allTiles.some((i) => !tileIsFreeOfBuildings(s, i))) return "Non si possono scambiare proprietà di regioni con edifici.";
   if (from.balance < t.offerCash) return `${from.name} non ha abbastanza crediti.`;
   if (to.balance < t.requestCash) return `${to.name} non ha abbastanza crediti.`;
   const hasAll = (have: string[], want: string[]) => {
@@ -1179,7 +1179,7 @@ function advanceTurn(c: Ctx) {
     savedDeadline: null,
     startedAt: c.now,
   };
-  c.emit("turn", `Turno ${s.turn.number}: tocca a ${next.name}${next.inJail ? " (in prigione)" : ""}.`, next.id, {
+  c.emit("turn", `Turno ${s.turn.number}: tocca a ${next.name}${next.inJail ? " (nelle Segrete)" : ""}.`, next.id, {
     turn: s.turn.number,
   });
 }

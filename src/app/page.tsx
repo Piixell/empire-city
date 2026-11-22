@@ -72,13 +72,13 @@ export default function HomePage() {
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <Logo size="lg" />
             <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-              Il gioco da tavolo immobiliare per <strong className="text-foreground">fino a 6 amici online</strong>. Compra quartieri,
-              costruisci torri, tratta senza pietà e manda in bancarotta gli avversari su una plancia maxi da 48 caselle.
+              Il gioco da tavolo immobiliare per <strong className="text-foreground">fino a 6 amici online</strong>. Conquista le regioni di Valoria,
+              erigi torrette e fortezze, tratta senza pietà e manda in bancarotta gli avversari su una plancia maxi da 48 caselle.
             </p>
             <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { icon: Users, t: "6 giocatori", d: "in tempo reale" },
-                { icon: Building2, t: "48 caselle", d: "8 quartieri" },
+                { icon: Building2, t: "48 caselle", d: "8 regioni" },
                 { icon: Coins, t: "Aste live", d: "con timer" },
                 { icon: Handshake, t: "Scambi", d: "e controfferte" },
               ].map(({ icon: Icon, t, d }) => (
