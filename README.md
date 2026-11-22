@@ -180,3 +180,4 @@ Verificato in questo ambiente: build/typecheck, test automatici (motore + backen
 Checklist manuale consigliata (6 dispositivi): crea stanza con password → 5 amici entrano dal link → colori/pedine diversi e aggiornati in tempo reale → tutti pronti → avvio → verificare 2.000 cr ciascuno → lanci e movimento visibili a tutti → acquisto → affitto → scambio → asta → chiudere e riaprire il browser di un giocatore (rientra nella stessa partita) → doppio clic veloce su "Lancia i dadi" (un solo lancio) → bancarotta → schermata finale → "Nuova partita con gli stessi giocatori".
 
 Semplificazioni consapevoli: non è modellata la scorta limitata di case/torri della banca; le proprietà tornate alla banca dopo una bancarotta non vengono messe all'asta; il trasferimento di proprietà ipotecate tramite scambio non applica la commissione del 10%.
+# empire-city
