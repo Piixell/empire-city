@@ -79,6 +79,16 @@ export function parseDatabaseUrl(raw: string): DbConnectionParams {
   };
 }
 
+/**
+ * All JSON parameters are passed already serialized (JSON.stringify). If a
+ * parameter is typed `jsonb`, postgres.js serializes it AGAIN (a JSON string
+ * of the JSON text). Casting through `text` makes the driver send the string
+ * verbatim and lets Postgres parse it, matching PGlite's behaviour.
+ */
+export function castJsonParamsAsText(sql: string): string {
+  return sql.replace(/(\$\d+)::jsonb\b/g, "$1::text::jsonb");
+}
+
 export async function createPostgresDatabase(rawUrl: string): Promise<Database> {
   const { default: postgres } = await import("postgres");
   const conn = parseDatabaseUrl(rawUrl);
@@ -97,7 +107,7 @@ export async function createPostgresDatabase(rawUrl: string): Promise<Database> 
   });
   const wrap = (s: { unsafe: (q: string, p?: any[]) => Promise<any> }): Queryer => ({
     async query(text, params = []) {
-      const rows = await s.unsafe(text, params as any[]);
+      const rows = await s.unsafe(castJsonParamsAsText(text), params as any[]);
       return Array.from(rows as Iterable<Row>) as any;
     },
   });
@@ -151,13 +161,13 @@ export async function createPgliteDatabase(dataDir?: string): Promise<Database> 
   return {
     kind: "pglite",
     async query(text, params = []) {
-      return (await pg.query(text, params as any[])).rows as any;
+      return (await pg.query(castJsonParamsAsText(text), params as any[])).rows as any;
     },
     async tx(fn) {
       return pg.transaction(async (t) =>
         fn({
           async query(text, params = []) {
-            return (await t.query(text, params as any[])).rows as any;
+            return (await t.query(castJsonParamsAsText(text), params as any[])).rows as any;
           },
         }),
       );

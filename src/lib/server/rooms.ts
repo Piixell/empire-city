@@ -93,6 +93,19 @@ export function generateRoomCode(rng: (max: number) => number = randomInt): stri
   return s;
 }
 
+/** jsonb values written as a JSON *string* (driver double-encoding) are parsed back. */
+function jsonObject(v: unknown): Record<string, unknown> {
+  if (typeof v === "string") {
+    try {
+      const parsed = JSON.parse(v);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+}
+
 function roomView(r: Row): RoomView {
   return {
     id: r.id,
@@ -101,7 +114,7 @@ function roomView(r: Row): RoomView {
     hostUserId: r.host_user_id,
     maxPlayers: r.max_players,
     hasPassword: r.has_password,
-    settings: { ...DEFAULT_SETTINGS, ...(r.settings ?? {}), maxPlayers: r.max_players },
+    settings: { ...DEFAULT_SETTINGS, ...jsonObject(r.settings), maxPlayers: r.max_players },
     currentGameId: r.current_game_id,
     createdAt: new Date(r.created_at).toISOString(),
   };
@@ -370,7 +383,7 @@ export async function updateSettings(
     const r = await lockRoomById(q, roomId);
     if (r.host_user_id !== userId) throw forbidden("Solo l'host può modificare le impostazioni.");
     if (r.status !== "lobby") throw conflict("LOCKED", "Le impostazioni sono bloccate dopo l'avvio.");
-    const merged = settingsSchema.parse({ ...DEFAULT_SETTINGS, ...(r.settings ?? {}), maxPlayers: r.max_players, ...(input.settings ?? {}) });
+    const merged = settingsSchema.parse({ ...DEFAULT_SETTINGS, ...jsonObject(r.settings), maxPlayers: r.max_players, ...(input.settings ?? {}) });
     const players = await activePlayers(q, roomId);
     if (merged.maxPlayers < players.length) {
       throw conflict("TOO_MANY_PLAYERS", `Ci sono già ${players.length} giocatori nella stanza.`);
@@ -409,7 +422,7 @@ export async function startGame(db: Database, userId: string, roomId: string, rn
       throw conflict("NOT_READY", `In attesa di: ${notReady.map((p) => p.display_name).join(", ")}.`);
     }
     if (new Set(players.map((p) => p.color)).size !== players.length) throw conflict("COLOR_CLASH", "Due giocatori hanno lo stesso colore.");
-    const settings = settingsSchema.parse({ ...DEFAULT_SETTINGS, ...(r.settings ?? {}), maxPlayers: r.max_players });
+    const settings = settingsSchema.parse({ ...DEFAULT_SETTINGS, ...jsonObject(r.settings), maxPlayers: r.max_players });
     const nowRow = await q.query(`select (extract(epoch from clock_timestamp()) * 1000)::float8 as now_ms`);
     const now = Number(nowRow[0].now_ms);
     const gameId = randomUUID();
@@ -497,7 +510,7 @@ export async function postChat(db: Database, userId: string, roomId: string, bod
     const rooms = await q.query(`select settings from public.game_rooms where id = $1::uuid`, [roomId]);
     if (!rooms[0]) throw notFound("Stanza non trovata.");
     const me = await requireMember(q, roomId, userId);
-    if (rooms[0].settings?.chatEnabled === false) throw forbidden("La chat è disattivata in questa stanza.");
+    if (jsonObject(rooms[0].settings).chatEnabled === false) throw forbidden("La chat è disattivata in questa stanza.");
     const recent = await q.query(
       `select count(*)::int as n from public.chat_messages where room_id = $1::uuid and user_id = $2::uuid
          and created_at > now() - interval '10 seconds'`,

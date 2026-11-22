@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { parseDatabaseUrl } from "@/lib/server/db";
+import { castJsonParamsAsText, parseDatabaseUrl } from "@/lib/server/db";
+
+describe("jsonb parameter casting", () => {
+  it("routes serialized JSON params through text so drivers cannot double-encode them", () => {
+    expect(castJsonParamsAsText("select * from jsonb_to_recordset($1::jsonb) x, $12::jsonb, col::jsonb")).toBe(
+      "select * from jsonb_to_recordset($1::text::jsonb) x, $12::text::jsonb, col::jsonb",
+    );
+  });
+});
 
 describe("database URL parsing", () => {
   it("drops integration-only params and requires SSL for remote hosts", () => {
