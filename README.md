@@ -151,8 +151,8 @@ Aggiornamento di un database esistente: esegui in ordine `supabase/migrations/20
 
 | Elemento | Valore |
 |---|---|
-| Plance (menu nella lobby) | **Classica** 40 caselle: 22 proprietà in 8 regioni, 4 trasporti, 2 fonti arcane, 2–6 giocatori · **Standard** 48 (predefinita): 26 proprietà in 8 regioni, 5 trasporti, 3 fonti, 2–6 giocatori · **Maxi** 64: 36 proprietà in 10 regioni, 6 trasporti, 3 fonti, 2–8 giocatori |
-| Giocatori e colori | fino a 6 (Classica, Standard) o 8 (Maxi); 8 colori: rosso, blu, verde, giallo, viola, arancione, rosa, turchese |
+| Plance (menu nella lobby) | **Classica** 40 caselle: 22 proprietà in 8 regioni, 4 trasporti, 2 fonti arcane, 2–4 giocatori · **Standard** 48 (predefinita): 26 proprietà in 8 regioni, 5 trasporti, 3 fonti, 2–6 giocatori · **Maxi** 64: 36 proprietà in 10 regioni, 6 trasporti, 3 fonti, 2–8 giocatori |
+| Giocatori e colori | fino a 4 (Classica), 6 (Standard) o 8 (Maxi); 8 colori: rosso, blu, verde, giallo, viola, arancione, rosa, turchese |
 | Capitale iniziale | 2.000 cr (configurabile) |
 | Bonus Partenza | 250 cr (configurabile) |
 | Affitti | base; ×2 con quartiere completo senza edifici; 1–4 case; torre |

@@ -3,7 +3,7 @@ import type { BoardId, District, DistrictKey, TileDef } from "./types";
 // ---------------------------------------------------------------------------
 // Empire City — boards of the original fantasy world of Valoria.
 // Three variants (all names are original):
-//   classic   40 tiles (10 per side), 22 properties, 2–6 players
+//   classic   40 tiles (10 per side), 22 properties, 2–4 players
 //   standard  48 tiles (12 per side), 26 properties, 2–6 players  [default]
 //   maxi      64 tiles (16 per side), 36 properties, 2–8 players
 // Corners are always: start, dungeon (jail), camp (free), "Catturato!".
@@ -364,7 +364,7 @@ function finalize(id: BoardId, label: string, description: string, maxPlayers: n
 }
 
 export const BOARDS: Record<BoardId, BoardDef> = {
-  classic: finalize("classic", "Classica · 40 caselle", "La disposizione tradizionale: 22 proprietà in 8 regioni.", 6, CLASSIC_TILES),
+  classic: finalize("classic", "Classica · 40 caselle", "La disposizione tradizionale per 2–4 giocatori: 22 proprietà in 8 regioni.", 4, CLASSIC_TILES),
   standard: finalize("standard", "Standard · 48 caselle", "La plancia maxi originale: 26 proprietà in 8 regioni.", 6, STANDARD_TILES),
   maxi: finalize("maxi", "Maxi · 64 caselle", "Fino a 8 giocatori: 36 proprietà in 10 regioni.", 8, MAXI_TILES),
 };

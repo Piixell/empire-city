@@ -134,7 +134,7 @@ export default function HomePage() {
                   <p className="mt-1.5 text-xs text-muted-foreground">
                     {maxPlayers > 6
                       ? "Con 7–8 giocatori si usa la plancia Maxi da 64 caselle."
-                      : "Plancia Standard da 48 caselle: puoi cambiarla nella lobby (Classica 40, Standard 48, Maxi 64)."}
+                      : "Plancia Standard da 48 caselle: puoi cambiarla nella lobby (Classica 40 per 2–4 giocatori, Standard 48, Maxi 64)."}
                   </p>
                 </div>
                 <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm">

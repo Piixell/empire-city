@@ -430,7 +430,7 @@ describe("board variants on the database", () => {
     }
   });
 
-  it("rooms created with more than 6 seats get the maxi board; classic rooms clamp to 6", async () => {
+  it("rooms created with more than 6 seats get the maxi board; classic rooms clamp to 4", async () => {
     const host = randomUUID();
     const big = await createRoom(db, host, { name: "Big", maxPlayers: 8 });
     const s1 = await getRoomSnapshot(db, big.code, host);
@@ -439,6 +439,27 @@ describe("board variants on the database", () => {
     await updateSettings(db, host, big.roomId, { settings: { board: "classic" } });
     const s2 = await getRoomSnapshot(db, big.code, host);
     if (!s2.member) throw new Error();
-    expect([s2.room.settings.board, s2.room.maxPlayers]).toEqual(["classic", 6]);
+    expect([s2.room.settings.board, s2.room.maxPlayers]).toEqual(["classic", 4]);
+  });
+});
+
+describe("seat limits per board (database constraint)", () => {
+  it("refuses a classic room with more than 4 seats even when written directly", async () => {
+    const host = randomUUID();
+    const room = await createRoom(db, host, { name: "Classica", maxPlayers: 6 });
+    await updateSettings(db, host, room.roomId, { settings: { board: "classic" } });
+    const ok = await db.query(`select max_players, settings->>'board' as board from game_rooms where id = $1::uuid`, [room.roomId]);
+    expect(ok[0]).toMatchObject({ max_players: 4, board: "classic" });
+    let rejected = false;
+    try {
+      await db.query(`update game_rooms set max_players = 5 where id = $1::uuid`, [room.roomId]);
+    } catch (e) {
+      rejected = /game_rooms_board_seats/.test(String((e as Error).message));
+    }
+    expect(rejected).toBe(true);
+    // maxi still allows 8
+    await updateSettings(db, host, room.roomId, { settings: { board: "maxi", maxPlayers: 8 } });
+    const maxi = await db.query(`select max_players from game_rooms where id = $1::uuid`, [room.roomId]);
+    expect(maxi[0].max_players).toBe(8);
   });
 });

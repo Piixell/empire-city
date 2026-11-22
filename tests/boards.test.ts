@@ -11,7 +11,7 @@ const count = (id: BoardId, kind: string) => BOARDS[id].tiles.filter((t) => t.ki
 describe("board variants", () => {
   it.each([
     // id, size, properties, transports, utilities, chance, community, taxes, regions, maxPlayers
-    ["classic", 40, 22, 4, 2, 3, 3, 2, 8, 6],
+    ["classic", 40, 22, 4, 2, 3, 3, 2, 8, 4],
     ["standard", 48, 26, 5, 3, 4, 3, 3, 8, 6],
     ["maxi", 64, 36, 6, 3, 6, 5, 4, 10, 8],
   ] as const)("%s has the expected composition", (id, size, props, tr, ut, ch, co, tax, regions, maxPlayers) => {
@@ -93,13 +93,14 @@ describe("board variants", () => {
 });
 
 describe("games on each board", () => {
-  it("maxi accepts 8 players; standard and classic refuse more than 6", () => {
+  it("maxi accepts 8 players; standard refuses more than 6, classic more than 4", () => {
     const g = newGame(8, { board: "maxi", maxPlayers: 8 });
     expect(g.players).toHaveLength(8);
     expect(Object.keys(g.ownership)).toHaveLength(BOARDS.maxi.ownable.length);
-    for (const board of ["standard", "classic"] as const) {
+    expect(newGame(4, { board: "classic", maxPlayers: 4 }).players).toHaveLength(4);
+    for (const [board, n] of [["standard", 7], ["classic", 5]] as const) {
       try {
-        newGame(7, { board, maxPlayers: 8 });
+        newGame(n, { board, maxPlayers: 8 });
         throw new Error("expected failure");
       } catch (e) {
         expect(e).toBeInstanceOf(GameError);
@@ -139,7 +140,7 @@ describe("games on each board", () => {
   });
 
   it.each(["classic", "maxi"] as const)("random %s games keep every invariant", (board) => {
-    const players = board === "maxi" ? 8 : 6;
+    const players = BOARDS[board].maxPlayers; // maxi 8, classic 4
     const size = BOARDS[board].size;
     for (let seed = 1; seed <= 4; seed++) {
       const rng = seededRng(seed * 7);
